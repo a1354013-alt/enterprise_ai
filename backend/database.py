@@ -159,11 +159,15 @@ class DocumentDatabase:
         return bcrypt.checkpw(password.encode(), user["password_hash"].encode())
     
     def list_users(self) -> List[Dict]:
-        """列出所有使用者"""
+        """列出所有使用者（不選擇 password_hash）"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users")
+            # 【重要】只選擇必要欄位，不選 password_hash
+            cursor.execute("""
+                SELECT user_id, display_name, role, is_active, created_at, updated_at 
+                FROM users
+            """)
             return [dict(row) for row in cursor.fetchall()]
     
     def add_user(self, user_id: str, password: str, display_name: str, role: str = "employee") -> bool:

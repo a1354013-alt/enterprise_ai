@@ -239,7 +239,7 @@ const saveDocument = async () => {
     formData.append('approved', docForm.value.approved)
     formData.append('is_active', docForm.value.is_active)
     
-    await axios.patch(`${API_BASE}/api/admin/docs/${editingDoc.value.doc_id}`, formData, {
+    await axios.patch(`${API_BASE}/api/admin/docs/${docForm.value.doc_id}`, formData, {
       headers: getAuthHeader()
     })
     toast.add({ severity: 'success', summary: '成功', detail: '文件已更新' })
@@ -265,9 +265,9 @@ const editUser = (user) => {
 const editDocument = (doc) => {
   editingDoc.value = doc
   docForm.value = {
-    doc_id: doc.doc_id,
+    doc_id: doc.id,  // 改用 doc.id
     filename: doc.filename,
-    allowed_roles: doc.allowed_roles.split(','),
+    allowed_roles: typeof doc.allowed_roles === 'string' ? doc.allowed_roles.split(',') : doc.allowed_roles,
     approved: doc.approved,
     is_active: doc.is_active
   }
@@ -292,10 +292,10 @@ const deleteUser = async (user) => {
 }
 
 const deleteDocument = async (doc) => {
-  if (!confirm(`確定要刪除文件 ${doc.filename} 嗎？`)) return
+  if (!confirm(`確定要刪除文件 ${doc.filename} 吗？`)) return
   
   try {
-    await axios.delete(`${API_BASE}/api/admin/docs/${doc.doc_id}`, {
+    await axios.delete(`${API_BASE}/api/admin/docs/${doc.id}`, {
       headers: getAuthHeader()
     })
     toast.add({ severity: 'success', summary: '成功', detail: '文件已刪除' })

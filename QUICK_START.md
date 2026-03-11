@@ -8,18 +8,18 @@
 ## 步驟 1：解壓縮（1 分鐘）
 
 ```bash
-tar -xzf enterprise-ai-assistant-v3.2-fixed.tar.gz
+tar -xzf <package>.tar.gz  # 將 <package> 替換為實際檔名
 cd enterprise-ai-assistant
 ```
 
-## 步驟 2：啟動後端（2 分鐘）
+## 步驟 2：啟動上端（2 分鐘）
 
 打開**終端 1**：
 
 ```bash
 cd backend
 pip install -r requirements.txt
-python main.py
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 等待看到：
@@ -84,7 +84,7 @@ cd backend
 pip install -r requirements.txt
 
 # 啟動應用
-python main.py
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 # 查看 API 文檔
 # 訪問 http://localhost:8000/docs

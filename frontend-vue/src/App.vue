@@ -133,7 +133,7 @@
                   <p>暫無文件</p>
                 </div>
                 <div v-else class="doc-items">
-                  <div v-for="doc in documents" :key="doc.doc_id" class="doc-item">
+                  <div v-for="doc in documents" :key="doc.id" class="doc-item">
                     <div class="doc-info">
                       <p class="doc-name">{{ doc.filename }}</p>
                       <p class="doc-meta">
@@ -143,7 +143,7 @@
                     </div>
                     <Button 
                       v-if="currentUser.user_id === doc.uploaded_by || currentUser.role === 'admin'"
-                      @click="deleteDocument(doc.doc_id)" 
+                      @click="deleteDocument(doc.id)" 
                       icon="pi pi-trash"
                       severity="danger"
                       size="small"

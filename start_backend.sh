@@ -55,8 +55,19 @@ if [ ! -f "requirements.txt" ]; then
 fi
 
 echo "📦 檢查依賴..."
-pip install -q -r requirements.txt
-echo "✅ 依賴已安裝"
+
+# 【重要】只在 requirements.txt 變更或首次安裝時才重新安裝
+REQUIREMENTS_HASH_FILE=".requirements_hash"
+CURRENT_HASH=$(md5sum requirements.txt | awk '{print $1}')
+
+if [ ! -f "$REQUIREMENTS_HASH_FILE" ] || [ "$(cat $REQUIREMENTS_HASH_FILE)" != "$CURRENT_HASH" ]; then
+    echo "📦 依賴有變更，重新安裝..."
+    pip install -r requirements.txt
+    echo "$CURRENT_HASH" > "$REQUIREMENTS_HASH_FILE"
+    echo "✅ 依賴安裝完成"
+else
+    echo "✅ 依賴無變更，跳過安裝"
+fi
 
 # 檢查 JWT_SECRET
 if ! grep -q "JWT_SECRET" .env || grep "JWT_SECRET=" .env | grep -q "your-secret"; then
@@ -78,4 +89,4 @@ echo "=========================================="
 echo ""
 
 # 啟動應用
-python main.py
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload

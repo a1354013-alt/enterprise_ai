@@ -5,6 +5,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Header, stat
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+import os
 
 # 載入 .env 檔案（必須在最前面）
 load_dotenv()
@@ -25,12 +26,12 @@ from utils import (
 
 # ============ 配置 ============
 
-# 上傳目錄
-UPLOAD_DIR = Path("./uploads")
+# 上傳目錄（從環境變數讀取）
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-# 資料庫
-db = DocumentDatabase("documents.db")
+# 資料庫（從環境變數讀取）
+db = DocumentDatabase(os.getenv("DATABASE_PATH", "documents.db"))
 
 # CORS 配置（修復：避免 * 與 credentials 衝突）
 ALLOWED_ORIGINS_STR = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").strip()
@@ -246,18 +247,39 @@ async def list_documents(authorization: str = Header(None)):
         token = extract_token_from_header(authorization)
         token_data = verify_token(token)
         
+        user_id = token_data.get("sub")
+        user_role = token_data.get("role")
+        
         documents = db.list_documents()
-        # 【重要】統一回傳 id 而非 doc_id，與 DocumentResponse 模型一致
+        
+        # 【重要】權限過濾：admin 看全部，非 admin 只看 approved=1 AND is_active=1 AND user_role in allowed_roles，或自己上傳的
+        filtered_docs = []
+        for doc in documents:
+            if user_role == "admin":
+                filtered_docs.append(doc)
+            else:
+                is_approved = doc.get("approved", 0) == 1
+                is_active = doc.get("is_active", 1) == 1
+                allowed_roles = doc.get("allowed_roles", "")
+                uploaded_by = doc.get("uploaded_by", "")
+                is_own_doc = uploaded_by == user_id
+                is_visible = is_approved and is_active and user_role in allowed_roles
+                if is_own_doc or is_visible:
+                    filtered_docs.append(doc)
+        
+        # 【重要】回傳必要欄位（包含 uploaded_by 和 approved，但不含 saved_filename 以避免內部檔名洩漏）
         return [
             {
-                "id": doc["doc_id"],  # 映射 doc_id 為 id
+                "id": doc["doc_id"],
                 "filename": doc["filename"],
-                "saved_filename": doc["saved_filename"],
                 "allowed_roles": doc["allowed_roles"],
                 "uploaded_at": doc["uploaded_at"],
-                "file_size": doc.get("file_size", 0)
+                "file_size": doc.get("file_size", 0),
+                "uploaded_by": doc.get("uploaded_by", ""),
+                "approved": doc.get("approved", 0),
+                "is_active": doc.get("is_active", 1)
             }
-            for doc in documents
+            for doc in filtered_docs
         ]
     except HTTPException:
         raise
@@ -393,19 +415,9 @@ async def admin_list_users(authorization: str = Header(None)):
         token_data = verify_token(token)
         require_admin(token_data)
         
+        # 【重要】DB 層已經不選 password_hash，直接回傳
         users = db.list_users()
-        # 【重要】移除敏感欄位 password_hash
-        return [
-            {
-                "user_id": u["user_id"],
-                "display_name": u["display_name"],
-                "role": u["role"],
-                "is_active": u["is_active"],
-                "created_at": u["created_at"],
-                "updated_at": u["updated_at"]
-            }
-            for u in users
-        ]
+        return users
     except HTTPException:
         raise
     except Exception as e:
@@ -518,7 +530,21 @@ async def admin_list_documents(authorization: str = Header(None)):
         require_admin(token_data)
         
         documents = db.list_documents()
-        return documents
+        # 【重要】統一回傳 id 而非 doc_id，與一般使用者的 /api/docs 一致
+        return [
+            {
+                "id": doc["doc_id"],  # 映射 doc_id 為 id
+                "filename": doc["filename"],
+                "saved_filename": doc["saved_filename"],
+                "allowed_roles": doc["allowed_roles"],
+                "uploaded_at": doc["uploaded_at"],
+                "file_size": doc.get("file_size", 0),
+                "approved": doc.get("approved", 0),
+                "is_active": doc.get("is_active", 1),
+                "uploaded_by": doc.get("uploaded_by", "")
+            }
+            for doc in documents
+        ]
     except HTTPException:
         raise
     except Exception as e:
@@ -605,12 +631,17 @@ async def admin_update_document(
         if (old_approved == 1 and approved == 0) or (old_is_active == 1 and is_active == 0):
             delete_from_vector_db(doc_id)
         
-        # 情況 3：allowed_roles 改變且目前 approved=1 & is_active=1（更新角色旗標）
+        # 情況 3：allowed_roles 改變且目前 approved=1 & is_active=1（更新觖色旗標）
         new_approved = approved if approved is not None else old_approved
         new_is_active = is_active if is_active is not None else old_is_active
         new_allowed_roles = allowed_roles if allowed_roles else old_allowed_roles
         
-        if new_allowed_roles != old_allowed_roles and new_approved == 1 and new_is_active == 1:
+        # 【重要】統一成 list 並比較，避免类型不一致導致誤判
+        normalized_new_roles = parse_doc_roles(new_allowed_roles) if isinstance(new_allowed_roles, str) else new_allowed_roles
+        normalized_old_roles = old_allowed_roles if isinstance(old_allowed_roles, list) else parse_doc_roles(old_allowed_roles)
+        
+        # 用 set 比較，不受順序影響
+        if set(normalized_new_roles) != set(normalized_old_roles) and new_approved == 1 and new_is_active == 1:
             try:
                 # 先刪除舊的
                 delete_from_vector_db(doc_id)

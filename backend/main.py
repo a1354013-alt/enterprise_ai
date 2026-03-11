@@ -16,6 +16,8 @@ from auth import create_token, verify_token, extract_token_from_header, ALLOWED_
 from utils import (
     generate_safe_filename,
     parse_roles,
+    parse_user_roles,
+    parse_doc_roles,
     stream_write_file,
     MAX_FILE_SIZE
 )
@@ -193,7 +195,7 @@ async def upload_document(
         
         # 驗證並解析角色
         try:
-            roles_list = parse_roles(allowed_roles)
+            roles_list = parse_doc_roles(allowed_roles)
         except ValueError as e:
             file_path.unlink(missing_ok=True)
             raise HTTPException(status_code=400, detail=str(e))
@@ -403,7 +405,7 @@ async def admin_create_user(
         
         # 驗證角色
         try:
-            parse_roles(role)
+            parse_user_roles(role)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         
@@ -444,7 +446,7 @@ async def admin_update_user(
         # 驗證角色
         if role:
             try:
-                parse_roles(role)
+                parse_user_roles(role)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
         
@@ -527,7 +529,7 @@ async def admin_update_document(
         # 驗證角色
         if allowed_roles:
             try:
-                parse_roles(allowed_roles)
+                parse_doc_roles(allowed_roles)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
         
@@ -539,7 +541,8 @@ async def admin_update_document(
         # 準備更新資料
         updates = {}
         if allowed_roles:
-            updates["allowed_roles"] = allowed_roles.split(",")
+            # 【重要】使用已驗證 + strip 的角色列表
+            updates["allowed_roles"] = parse_doc_roles(allowed_roles)
         if approved is not None:
             updates["approved"] = approved
         if is_active is not None:
@@ -558,11 +561,14 @@ async def admin_update_document(
                 if not file_path.exists():
                     raise HTTPException(status_code=500, detail="檔案不存在")
                 
-                roles_list = [r.strip() for r in old_allowed_roles.split(",")]
-                process_file(str(file_path), doc["filename"], roles_list)
+                # 【重要】使用新角色（若有改變）或舊角色
+                new_allowed_roles = allowed_roles if allowed_roles else old_allowed_roles
+                roles_list = parse_doc_roles(new_allowed_roles) if isinstance(new_allowed_roles, str) else new_allowed_roles
+                # 【重要】第一個參數是 doc_id，不是 file_path！
+                process_file(doc_id, str(file_path), doc["filename"], roles_list, approved=1, is_active=1)
             except Exception as e:
-                # 回滾資料庫更新
-                db.update_document(doc_id, approved=0)
+                # 【重要】完整回滾到舊狀態
+                db.update_document(doc_id, approved=old_approved, is_active=old_is_active, allowed_roles=old_allowed_roles)
                 raise HTTPException(status_code=500, detail=f"入庫失敗: {str(e)}")
         
         # 情況 2：approved 從 1->0 或 is_active 從 1->0（撤審/下架，移出庫）
@@ -584,11 +590,12 @@ async def admin_update_document(
                 if not file_path.exists():
                     raise HTTPException(status_code=500, detail="檔案不存在")
                 
-                roles_list = [r.strip() for r in new_allowed_roles.split(",")]
-                process_file(str(file_path), doc["filename"], roles_list)
+                roles_list = parse_doc_roles(new_allowed_roles) if isinstance(new_allowed_roles, str) else new_allowed_roles
+                # 【重要】第一個參數是 doc_id，不是 file_path！
+                process_file(doc_id, str(file_path), doc["filename"], roles_list, approved=1, is_active=1)
             except Exception as e:
-                # 回滾資料庫更新
-                db.update_document(doc_id, allowed_roles=[r.strip() for r in old_allowed_roles.split(",")])
+                # 【重要】完整回滾到舊狀態
+                db.update_document(doc_id, approved=old_approved, is_active=old_is_active, allowed_roles=old_allowed_roles)
                 raise HTTPException(status_code=500, detail=f"更新角色旗標失敗: {str(e)}")
         
         return {"message": "文件已更新"}

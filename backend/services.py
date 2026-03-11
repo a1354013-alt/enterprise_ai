@@ -29,7 +29,7 @@ def get_llm():
 
 # ============ 文件處理 ============
 
-def process_file(file_path: str, filename: str, allowed_roles: List[str]) -> str:
+def process_file(doc_id: str, file_path: str, filename: str, allowed_roles: List[str], approved: int = 1, is_active: int = 1) -> str:
     """
     處理上傳的文件
     
@@ -39,23 +39,49 @@ def process_file(file_path: str, filename: str, allowed_roles: List[str]) -> str
     3. 準備 metadata
     4. 呼叫 add_to_vector_db 入庫
     
+    參數:
+        doc_id: 文件 ID（由呼叫者傳入，確保一致性）
+        file_path: 檔案路徑
+        filename: 檔案名稱
+        allowed_roles: 允許查看的角色
+        approved: 是否批准（1=已批准，0=未批准）
+        is_active: 是否啟用（1=啟用，0=停用）
+    
     返回: doc_id
     """
-    doc_id = str(uuid.uuid4())
     
     # 根據副檔名選擇 Loader
     ext = os.path.splitext(filename)[1].lower()
     if ext == ".pdf":
         loader = PyPDFLoader(file_path)
     elif ext == ".txt":
-        loader = TextLoader(file_path)
+        # 【重要】指定 encoding，避免中文翻車
+        try:
+            loader = TextLoader(file_path, encoding="utf-8")
+        except UnicodeDecodeError:
+            # 備選：嘗試 utf-8-sig 或 cp950
+            try:
+                loader = TextLoader(file_path, encoding="utf-8-sig")
+            except UnicodeDecodeError:
+                loader = TextLoader(file_path, encoding="cp950")
     elif ext == ".md":
-        loader = TextLoader(file_path)
+        # 【重要】指定 encoding，避免中文翻車
+        try:
+            loader = TextLoader(file_path, encoding="utf-8")
+        except UnicodeDecodeError:
+            # 備選：嘗試 utf-8-sig 或 cp950
+            try:
+                loader = TextLoader(file_path, encoding="utf-8-sig")
+            except UnicodeDecodeError:
+                loader = TextLoader(file_path, encoding="cp950")
     else:
         raise ValueError(f"不支援的檔案格式: {ext}")
     
     # 載入文件
-    docs = loader.load()
+    try:
+        docs = loader.load()
+    except UnicodeDecodeError as e:
+        raise ValueError(f"文件編碼錯誤，請確保文件為 UTF-8 編碼: {str(e)}")
     
     # 切分文本
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
@@ -76,11 +102,16 @@ def process_file(file_path: str, filename: str, allowed_roles: List[str]) -> str
             "doc_id": doc_id,
             "filename": filename,
             "page_or_section": page_or_section,
-            "allowed_roles": ",".join(allowed_roles)
+            "allowed_roles": ",".join(allowed_roles),
+            "approved": approved,
+            "is_active": is_active
         })
     
     # 【重要】呼叫 add_to_vector_db 入庫
-    # metadata 會自動添加角色旗標（role_employee, role_manager, role_hr, role_admin）
+    # metadata 已包含 doc_id、approved、is_active、allowed_roles
+    # add_to_vector_db 會自動添加角色旗標（role_employee, role_manager, role_hr, role_admin）
+    if not texts:
+        raise ValueError(f"文件 {filename} 為空，無法入庫")
     add_to_vector_db(doc_id, texts, metadatas, allowed_roles)
     
     return doc_id
@@ -133,11 +164,16 @@ async def perform_qa(question: str, user_role: str) -> Tuple[str, List[Source]]:
     if llm:
         # 有 OpenAI key：使用 LLM
         try:
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: llm.invoke(f"{SYSTEM_PROMPT}\n\n【參考資訊】\n{context}\n\n【使用者問題】\n{question}")
-            )
+            # 優先使用 ainvoke（更乾淨的非同步）
+            if hasattr(llm, 'ainvoke'):
+                response = await llm.ainvoke(f"{SYSTEM_PROMPT}\n\n【參考資訊】\n{context}\n\n【使用者問題】\n{question}")
+            else:
+                # 備選：如果不支援 ainvoke，改用 run_in_executor
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: llm.invoke(f"{SYSTEM_PROMPT}\n\n【參考資訊】\n{context}\n\n【使用者問題】\n{question}")
+                )
             answer = response.content if hasattr(response, 'content') else str(response)
         except Exception as e:
             answer = f"LLM 呼叫失敗: {str(e)}"

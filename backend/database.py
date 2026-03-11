@@ -284,17 +284,25 @@ class DocumentDatabase:
 # ============ ChromaDB 向量庫操作 ============
 
 def get_collection():
-    """取得 ChromaDB collection（快取版本）"""
+    """
+    取得 ChromaDB collection（快取版本）
+    【重要】使用 PersistentClient 確保資料持久化
+    """
     global _COLLECTION
     
     if _COLLECTION is not None:
         return _COLLECTION
     
-    client = chromadb.Client()
+    # 【重要】使用 PersistentClient 而非 Client
+    # 這樣重啟後端後，向量庫資料不會消失
+    chroma_db_path = os.getenv("CHROMA_DB_PATH", "./chroma_db")
+    client = chromadb.PersistentClient(path=chroma_db_path)
+    
     _COLLECTION = client.get_or_create_collection(
         name="documents",
         embedding_function=get_embedding_function()
     )
+    print(f"✅ ChromaDB 已連接到 {chroma_db_path}")
     return _COLLECTION
 
 def add_to_vector_db(doc_id: str, chunks: List[str], metadatas: List[Dict], allowed_roles: List[str]) -> bool:

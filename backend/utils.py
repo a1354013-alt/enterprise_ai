@@ -1,99 +1,81 @@
-"""
-工具函數模組
-提取可重用的業務邏輯，保持 main.py 和 services.py 簡潔
-"""
-
 import os
 import uuid
 from pathlib import Path
-from typing import List, Dict, Optional
-from fastapi import HTTPException, status
+from typing import List, Tuple
+import aiofiles
 
-# ============ 檔案相關工具 ============
 
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md"}
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-
+# ============ 檔案工具 ============
 
 def generate_safe_filename(original_filename: str) -> str:
     """
-    生成安全的檔名（使用 UUID）
+    生成安全的檔案名稱（使用 UUID）
     
     Args:
-        original_filename: 原始檔名
+        original_filename: 原始檔案名稱
     
     Returns:
-        安全的檔名（UUID + 副檔名）
-    
-    Raises:
-        ValueError: 副檔名不允許
+        安全的檔案名稱（UUID + 副檔名）
     """
     ext = Path(original_filename).suffix.lower()
-    
-    if ext not in ALLOWED_EXTENSIONS:
-        raise ValueError(
-            f"不允許的副檔名: {ext}。允許: {', '.join(ALLOWED_EXTENSIONS)}"
-        )
-    
-    safe_filename = f"{uuid.uuid4()}{ext}"
-    return safe_filename
+    return f"{uuid.uuid4()}{ext}"
 
 
-async def stream_write_file(file, file_path: Path, max_size: int = MAX_FILE_SIZE) -> int:
+def validate_file_extension(filename: str, allowed_extensions: Tuple[str, ...] = (".pdf", ".txt", ".md")) -> bool:
     """
-    流式寫入檔案，邊讀邊寫，計算大小
+    驗證檔案副檔名
     
     Args:
-        file: FastAPI UploadFile 物件
-        file_path: 目標檔案路徑
-        max_size: 最大檔案大小（bytes）
+        filename: 檔案名稱
+        allowed_extensions: 允許的副檔名
     
     Returns:
-        檔案大小（bytes）
-    
-    Raises:
-        HTTPException: 檔案過大或寫入失敗
+        是否有效
     """
-    file_size = 0
-    chunk_size = 8192  # 8KB chunks
+    ext = Path(filename).suffix.lower()
+    return ext in allowed_extensions
+
+
+async def stream_write_file(file_content, file_path: str, chunk_size: int = 8192) -> int:
+    """
+    流式寫入檔案（邊讀邊寫，節省記憶體）
     
-    try:
-        with open(file_path, "wb") as f:
-            while True:
-                chunk = await file.read(chunk_size)
-                if not chunk:
-                    break
-                
-                file_size += len(chunk)
-                if file_size > max_size:
-                    file_path.unlink(missing_ok=True)
-                    raise HTTPException(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail=f"檔案過大（最大 {max_size / 1024 / 1024:.0f}MB）"
-                    )
-                
-                f.write(chunk)
-        
-        return file_size
+    Args:
+        file_content: 檔案內容（bytes 或 async iterator）
+        file_path: 檔案路徑
+        chunk_size: 每次讀取的大小
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        file_path.unlink(missing_ok=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"檔案寫入失敗: {str(e)}"
-        )
+    Returns:
+        寫入的總字節數
+    """
+    total_size = 0
+    async with aiofiles.open(file_path, "wb") as f:
+        if isinstance(file_content, bytes):
+            await f.write(file_content)
+            total_size = len(file_content)
+        else:
+            async for chunk in file_content:
+                await f.write(chunk)
+                total_size += len(chunk)
+    
+    return total_size
 
 
 # ============ 角色相關工具 ============
 
-ALLOWED_ROLES = {"employee", "manager", "hr"}
+# 使用者角色（包含 admin）
+ALLOWED_USER_ROLES = {"employee", "manager", "hr", "admin"}
+
+# 文件可見角色（包含 admin）
+ALLOWED_DOC_ROLES = {"employee", "manager", "hr", "admin"}
+
+# 向後相容
+ALLOWED_ROLES = ALLOWED_USER_ROLES
 
 
-def validate_roles(roles: List[str]) -> bool:
+def validate_user_roles(roles: List[str]) -> bool:
     """
-    驗證角色列表是否都在白名單中
+    驗證使用者角色列表是否都在白名單中
     
     Args:
         roles: 角色列表
@@ -103,12 +85,32 @@ def validate_roles(roles: List[str]) -> bool:
     """
     if not roles:
         return False
-    return all(role in ALLOWED_ROLES for role in roles)
+    return all(role in ALLOWED_USER_ROLES for role in roles)
 
 
-def parse_roles(roles_str: str) -> List[str]:
+def validate_doc_roles(roles: List[str]) -> bool:
     """
-    解析角色字符串（逗號分隔）
+    驗證文件可見角色列表是否都在白名單中
+    
+    Args:
+        roles: 角色列表
+    
+    Returns:
+        是否有效
+    """
+    if not roles:
+        return False
+    return all(role in ALLOWED_DOC_ROLES for role in roles)
+
+
+def validate_roles(roles: List[str]) -> bool:
+    """向後相容：驗證使用者角色"""
+    return validate_user_roles(roles)
+
+
+def parse_user_roles(roles_str: str) -> List[str]:
+    """
+    解析使用者角色字符串（逗號分隔）
     
     Args:
         roles_str: 角色字符串（例如 "employee,manager"）
@@ -124,13 +126,45 @@ def parse_roles(roles_str: str) -> List[str]:
     
     roles = [r.strip() for r in roles_str.split(",") if r.strip()]
     
-    if not validate_roles(roles):
-        invalid_roles = [r for r in roles if r not in ALLOWED_ROLES]
+    if not validate_user_roles(roles):
+        invalid_roles = [r for r in roles if r not in ALLOWED_USER_ROLES]
         raise ValueError(
-            f"無效的角色: {', '.join(invalid_roles)}。允許: {', '.join(ALLOWED_ROLES)}"
+            f"無效的使用者角色: {', '.join(invalid_roles)}。允許: {', '.join(ALLOWED_USER_ROLES)}"
         )
     
     return roles
+
+
+def parse_doc_roles(roles_str: str) -> List[str]:
+    """
+    解析文件可見角色字符串（逗號分隔）
+    
+    Args:
+        roles_str: 角色字符串（例如 "employee,manager"）
+    
+    Returns:
+        角色列表
+    
+    Raises:
+        ValueError: 無效的角色
+    """
+    if not roles_str or not roles_str.strip():
+        return ["employee"]
+    
+    roles = [r.strip() for r in roles_str.split(",") if r.strip()]
+    
+    if not validate_doc_roles(roles):
+        invalid_roles = [r for r in roles if r not in ALLOWED_DOC_ROLES]
+        raise ValueError(
+            f"無效的文件角色: {', '.join(invalid_roles)}。允許: {', '.join(ALLOWED_DOC_ROLES)}"
+        )
+    
+    return roles
+
+
+def parse_roles(roles_str: str) -> List[str]:
+    """向後相容：解析使用者角色"""
+    return parse_user_roles(roles_str)
 
 
 # ============ 錯誤回應格式化 ============
@@ -139,48 +173,11 @@ class ErrorResponse:
     """統一的錯誤回應格式"""
     
     @staticmethod
-    def bad_request(detail: str) -> Dict:
-        """400 Bad Request"""
+    def format(detail: str, status_code: int = 400):
+        """格式化錯誤回應"""
         return {
-            "status": "error",
-            "code": 400,
-            "detail": detail
-        }
-    
-    @staticmethod
-    def unauthorized(detail: str) -> Dict:
-        """401 Unauthorized"""
-        return {
-            "status": "error",
-            "code": 401,
-            "detail": detail
-        }
-    
-    @staticmethod
-    def forbidden(detail: str) -> Dict:
-        """403 Forbidden"""
-        return {
-            "status": "error",
-            "code": 403,
-            "detail": detail
-        }
-    
-    @staticmethod
-    def not_found(detail: str) -> Dict:
-        """404 Not Found"""
-        return {
-            "status": "error",
-            "code": 404,
-            "detail": detail
-        }
-    
-    @staticmethod
-    def internal_error(detail: str) -> Dict:
-        """500 Internal Server Error"""
-        return {
-            "status": "error",
-            "code": 500,
-            "detail": detail
+            "detail": detail,
+            "status_code": status_code
         }
 
 
@@ -197,10 +194,10 @@ def get_env_bool(key: str, default: bool = False) -> bool:
     Returns:
         布林值
     """
-    value = os.getenv(key, "").strip().lower()
-    if value in ("true", "1", "yes", "on"):
+    value = os.getenv(key, "").lower()
+    if value in ("true", "1", "yes"):
         return True
-    elif value in ("false", "0", "no", "off"):
+    elif value in ("false", "0", "no"):
         return False
     return default
 
@@ -214,30 +211,31 @@ def get_env_int(key: str, default: int = 0) -> int:
         default: 預設值
     
     Returns:
-        整數值
+        整數
     """
     try:
-        return int(os.getenv(key, str(default)).strip())
-    except (ValueError, TypeError):
+        return int(os.getenv(key, str(default)))
+    except ValueError:
         return default
 
 
-def get_env_list(key: str, default: Optional[List[str]] = None) -> List[str]:
+def get_env_list(key: str, default: List[str] = None, separator: str = ",") -> List[str]:
     """
-    從環境變數讀取列表（逗號分隔）
+    從環境變數讀取列表
     
     Args:
         key: 環境變數名稱
         default: 預設值
+        separator: 分隔符
     
     Returns:
-        字符串列表
+        列表
     """
     if default is None:
         default = []
     
-    value = os.getenv(key, "").strip()
+    value = os.getenv(key, "")
     if not value:
         return default
     
-    return [item.strip() for item in value.split(",") if item.strip()]
+    return [v.strip() for v in value.split(separator) if v.strip()]

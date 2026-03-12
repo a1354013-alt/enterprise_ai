@@ -23,7 +23,9 @@ def get_llm():
     # 每次都動態讀取，支援環境變數變更
     openai_api_key = os.getenv("OPENAI_API_KEY", "").strip()
     
-    if openai_api_key and openai_api_key.startswith("sk-"):
+    # 【改進】只判斷非空，不檢查 sk- 前綴
+    # 原因：未來 key 格式可能變動，或使用非 sk- 前綴的供應商/代理
+    if openai_api_key:
         return ChatOpenAI(model="gpt-4o-mini", api_key=openai_api_key)
     return None
 
@@ -190,7 +192,10 @@ async def perform_qa(question: str, user_role: str) -> Tuple[str, List[Source]]:
             sources = []
     else:
         # 無 OpenAI key：Demo mode
-        answer = f"根據提供的文件，{question}。\n\n（此為 Demo 模式回答，實際需配置 OpenAI API Key）"
+        # 【重要】Demo mode 也必須遵循引用規則，保持一致性
+        # 若無法提供引用，就回「找不到依據」
+        answer = "找不到依據"
+        sources = []
     
     return answer, sources
 

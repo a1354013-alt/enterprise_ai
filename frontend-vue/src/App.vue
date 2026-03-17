@@ -112,9 +112,12 @@
               <!-- 角色選擇 (MultiSelect) -->
               <div class="role-input">
                 <label>允許查看角色</label>
+                <!-- 【修正 #3】MultiSelect: 指定 optionLabel 和 optionValue -->
                 <MultiSelect 
                   v-model="uploadRoles" 
                   :options="roleOptions"
+                  optionLabel="label"
+                  optionValue="value"
                   placeholder="選擇角色"
                   class="w-full"
                 />
@@ -278,6 +281,8 @@ import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Dropdown from 'primevue/dropdown'
 import MultiSelect from 'primevue/multiselect'
+// 【修正 #1】指明 import Toast
+import Toast from 'primevue/toast'
 import AdminConsole from './components/AdminConsole.vue'
 
 export default {
@@ -289,6 +294,8 @@ export default {
     Textarea,
     Dropdown,
     MultiSelect,
+    // 【修正 #1】註冊 Toast 元件
+    Toast,
     AdminConsole
   },
   setup() {

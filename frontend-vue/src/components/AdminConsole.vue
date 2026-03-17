@@ -125,8 +125,29 @@ import { ref, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import axios from 'axios'
 
+// 【修正 #2】PrimeVue 元件 import
+import TabView from 'primevue/tabview'
+import TabPanel from 'primevue/tabpanel'
+import Button from 'primevue/button'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import Tag from 'primevue/tag'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
+import Dropdown from 'primevue/dropdown'
+import Password from 'primevue/password'
+import MultiSelect from 'primevue/multiselect'
+
 // 【重要】定義 emit（修復 ReferenceError）
 const emit = defineEmits(['close'])
+
+// 【修正 #4】定義 props（接收 token）
+const props = defineProps({
+  token: {
+    type: String,
+    required: true
+  }
+})
 
 const toast = useToast()
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
@@ -165,13 +186,13 @@ const roleOptions = [
 ]
 
 // API 呼叫
+// 【修正 #4】使用 props.token 而非 localStorage
 const getAuthHeader = () => {
-  const token = localStorage.getItem('authToken')
-  if (!token) {
+  if (!props.token) {
     // 【重要】token 不存在時拋出錯誤
     throw new Error('Missing token')
   }
-  return { Authorization: `Bearer ${token}` }
+  return { Authorization: `Bearer ${props.token}` }
 }
 
 // 【重要】包裝 axios 呼叫，自動處理 token 缺失情況

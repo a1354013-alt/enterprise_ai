@@ -3,9 +3,13 @@ from typing import List, Optional
 
 # ============ 請求/回應模型 ============
 
-# 【注】DocumentResponse 已移除，使用實際 API 回傳的 dict 結構
-# - /api/docs（一般使用者）：id, filename, file_size, uploaded_at, approved, is_active, uploaded_by
-# - /api/admin/docs（admin）：id, filename, saved_filename, file_size, uploaded_at, approved, is_active, uploaded_by, allowed_roles
+# 【修正 #4】模型定義註解：
+# 下列是實際 API 回傳的結構：
+# - /api/docs（一般使用者）：
+#   id, filename, file_size, uploaded_at, approved, is_active, uploaded_by, allowed_roles
+# - /api/admin/docs（admin）：
+#   id, filename, file_size, uploaded_at, approved, is_active, uploaded_by, allowed_roles
+# 【改進 #5】不回傳 saved_filename（內部檔名，不必暗露）
 
 class QARequest(BaseModel):
     """問答請求"""
@@ -33,26 +37,7 @@ class GenerateResponse(BaseModel):
     """表單生成回應"""
     content: str = Field(description="生成的內容")
 
-# ============ SQLite 資料庫模型 ============
-
-class DocumentRecord:
-    """文件記錄（SQLite 表）"""
-    def __init__(self, doc_id: str, filename: str, saved_filename: str, 
-                 allowed_roles: str, uploaded_at: str, file_size: int = 0):
-        self.doc_id = doc_id
-        self.filename = filename
-        self.saved_filename = saved_filename
-        self.allowed_roles = allowed_roles  # 逗號分隔的字符串
-        self.uploaded_at = uploaded_at
-        self.file_size = file_size
-
-    def to_dict(self) -> dict:
-        """轉換為字典"""
-        return {
-            "id": self.doc_id,
-            "filename": self.filename,
-            "saved_filename": self.saved_filename,
-            "allowed_roles": self.allowed_roles.split(","),
-            "uploaded_at": self.uploaded_at,
-            "file_size": self.file_size
-        }
+# 【修正 #4】【簡化】移除未使用的 DocumentRecord
+# 原因：這個類定義已經不符合實際 API 的回傳結構
+# 且整個專案已經不依賴它，保留只會造成維護困擾
+# 殘留的 QARequest, QAResponse, GenerateRequest, GenerateResponse 是實際使用的

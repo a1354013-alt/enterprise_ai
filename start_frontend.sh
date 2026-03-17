@@ -6,14 +6,26 @@ cd frontend-vue
 DEPS_HASH_FILE=".npm_deps_hash"
 CURRENT_HASH=""
 
+# 【修正 #6】改進 lock file 検查：優先看 package-lock.json，後退 package.json
 if [ -f "package-lock.json" ]; then
-    # 【改進】支援 macOS 和 Linux 的 hash 檢查
+    # 優先使用 package-lock.json
+    LOCK_FILE="package-lock.json"
+elif [ -f "package.json" ]; then
+    # 退回使用 package.json
+    LOCK_FILE="package.json"
+else
+    echo "⚠️ 警告：找不到 package-lock.json 或 package.json"
+    LOCK_FILE=""
+fi
+
+if [ -n "$LOCK_FILE" ] && [ -f "$LOCK_FILE" ]; then
+    # 支援 macOS 和 Linux 的 hash 検查
     if command -v md5sum &> /dev/null; then
-        CURRENT_HASH=$(md5sum package-lock.json | awk '{print $1}')
+        CURRENT_HASH=$(md5sum "$LOCK_FILE" | awk '{print $1}')
     elif command -v md5 &> /dev/null; then
-        CURRENT_HASH=$(md5 -q package-lock.json)
+        CURRENT_HASH=$(md5 -q "$LOCK_FILE")
     else
-        CURRENT_HASH=$(shasum -a 256 package-lock.json | awk '{print $1}')
+        CURRENT_HASH=$(shasum -a 256 "$LOCK_FILE" | awk '{print $1}')
     fi
 fi
 

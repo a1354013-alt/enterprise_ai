@@ -135,7 +135,8 @@ async def login(user_id: str = Form(...), password: str = Form(...)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"登入失敗: {str(e)}")
+        logger.error(f"登入失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="登入失敗")
 
 @app.get("/api/me")
 async def get_current_user(authorization: str = Header(None)):
@@ -163,7 +164,8 @@ async def get_current_user(authorization: str = Header(None)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查詢失敗: {str(e)}")
+        logger.error(f"查詢失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="查詢失敗")
 
 # ============ 文件管理 API ============
 
@@ -249,7 +251,8 @@ async def upload_document(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"上傳失敗: {str(e)}")
+        logger.error(f"上傳失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="上傳失敗")
 
 @app.get("/api/docs")
 async def list_documents(authorization: str = Header(None)):
@@ -315,7 +318,8 @@ async def list_documents(authorization: str = Header(None)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查詢失敗: {str(e)}")
+        logger.error(f"查詢失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="查詢失敗")
 
 @app.delete("/api/docs/{doc_id}")
 async def delete_document(doc_id: str, authorization: str = Header(None)):
@@ -365,7 +369,8 @@ async def delete_document(doc_id: str, authorization: str = Header(None)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除失敗: {str(e)}")
+        logger.error(f"刪除失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="刪除失敗")
 
 # ============ QA API ============
 
@@ -402,7 +407,8 @@ async def qa_endpoint(request: QARequest, authorization: str = Header(None)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"問答失敗: {str(e)}")
+        logger.error(f"問答失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="系統發生錯誤，請稍後再試")
 
 @app.post("/api/generate", response_model=GenerateResponse)
 async def generate_endpoint(request: GenerateRequest, authorization: str = Header(None)):
@@ -431,7 +437,8 @@ async def generate_endpoint(request: GenerateRequest, authorization: str = Heade
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"生成失敗: {str(e)}")
+        logger.error(f"生成失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="生成失敗")
 
 # ========== Admin API ==========
 
@@ -457,7 +464,8 @@ async def admin_list_users(authorization: str = Header(None)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查詢失敗: {str(e)}")
+        logger.error(f"查詢失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="查詢失敗")
 
 @app.post("/api/admin/users")
 async def admin_create_user(
@@ -496,7 +504,8 @@ async def admin_create_user(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"建立失敗: {str(e)}")
+        logger.error(f"建立失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="建立失敗")
 
 @app.patch("/api/admin/users/{user_id}")
 async def admin_update_user(
@@ -551,7 +560,8 @@ async def admin_update_user(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新失敗: {str(e)}")
+        logger.error(f"更新失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="更新失敗")
 
 @app.get("/api/admin/docs")
 async def admin_list_documents(authorization: str = Header(None)):
@@ -588,7 +598,8 @@ async def admin_list_documents(authorization: str = Header(None)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"查詢失敗: {str(e)}")
+        logger.error(f"查詢失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="查詢失敗")
 
 @app.patch("/api/admin/docs/{doc_id}")
 async def admin_update_document(
@@ -686,16 +697,15 @@ async def admin_update_document(
                 # 【重要】先清掉可能殘留的 chunk，再回滚 DB 狀態
                 delete_from_vector_db(doc_id)
                 db.update_document(doc_id, approved=old_approved, is_active=old_is_active, allowed_roles=old_allowed_roles)
-                raise HTTPException(status_code=500, detail=f"入庫失敗: {str(e)}")
+                logger.error(f"入庫失敗: {str(e)}")
+                raise HTTPException(status_code=500, detail="系統發生錯誤，請稍後再試")
         
         # 情況 2：approved 從 1->0 或 is_active 從 1->0（撤審/下架，移出庫）
         if (old_approved == 1 and approved == 0) or (old_is_active == 1 and is_active == 0):
             delete_from_vector_db(doc_id)
             
             # 【新增】logging：記錄向量庫刪除事件
-            logger.info(
-                f"VECTOR_DELETE doc_id={doc_id}"
-            )
+            logger.info(f"DELETE success doc_id={doc_id}")
         
         # 情況 3：allowed_roles 改變且目前 approved=1 & is_active=1（更新觖色旗標）
         new_approved = approved if approved is not None else old_approved
@@ -736,14 +746,16 @@ async def admin_update_document(
                 # 【重要】先清掉可能殘留的 chunk，再回滚 DB 狀態
                 delete_from_vector_db(doc_id)
                 db.update_document(doc_id, approved=old_approved, is_active=old_is_active, allowed_roles=old_allowed_roles)
-                raise HTTPException(status_code=500, detail=f"更新角色旗標失敗: {str(e)}")
+                logger.error(f"更新角色旗標失敗: {str(e)}")
+                raise HTTPException(status_code=500, detail="系統發生錯誤，請稍後再試")
         
         return {"message": "文件已更新"}
     
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新失敗: {str(e)}")
+        logger.error(f"更新失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="更新失敗")
 
 @app.delete("/api/admin/docs/{doc_id}")
 async def admin_delete_document(doc_id: str, authorization: str = Header(None)):
@@ -783,4 +795,5 @@ async def admin_delete_document(doc_id: str, authorization: str = Header(None)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"刪除失敗: {str(e)}")
+        logger.error(f"刪除失敗: {str(e)}")
+        raise HTTPException(status_code=500, detail="刪除失敗")

@@ -5,9 +5,12 @@ JWT 身分驗證模組
 
 import os
 import jwt
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 from fastapi import HTTPException, status
+
+logger = logging.getLogger("enterprise-ai-assistant")
 
 # JWT 配置
 JWT_SECRET = os.getenv("JWT_SECRET", "").strip()
@@ -92,9 +95,10 @@ def verify_token(token: str) -> Dict:
             detail="Token 已過期"
         )
     except jwt.InvalidTokenError as e:
+        logger.warning(f"Token 驗證失敗: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token 無效: {str(e)}"
+            detail="Token 無效"
         )
 
 

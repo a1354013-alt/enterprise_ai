@@ -2,7 +2,7 @@
 
 完整的企業內部 AI 助理系統，包含文件管理、RAG 問答、表單生成、用戶認證、Admin 後台等功能。
 
-**版本**: 3.9.0 Final  
+**版本**: 4.0.0 Final  
 **更新**: 2026-03-13
 
 ## 🎯 核心功能
@@ -55,7 +55,7 @@
 
 ### 1️⃣ 解壓縮
 ```bash
-tar -xzf enterprise-ai-assistant-v3.9-final.tar.gz
+tar -xzf enterprise-ai-assistant-v4.0-final.tar.gz
 cd enterprise-ai-assistant
 ```
 
@@ -108,9 +108,9 @@ npm run dev
 ### 5️⃣ 登入
 
 - **帳號**: `admin`
-- **密碼**: 開發環境若未設定 `DEFAULT_ADMIN_PASSWORD`，系統會使用 fallback 密碼
+- **密碼**: 開發環境若未設定 `DEFAULT_ADMIN_PASSWORD`，系統會使用開發用 fallback 密碼
 
-⚠️ **重要**：正式環境必須自行設定強密碼！在 `.env` 中設定 `DEFAULT_ADMIN_PASSWORD`
+⚠️ **重要**：正式環境必須設定強密碼！在 `.env` 中設定 `DEFAULT_ADMIN_PASSWORD`
 
 ## 📖 使用指南
 
@@ -151,7 +151,7 @@ UPLOAD_DIR=./uploads
 CHROMA_DB_PATH=./chroma_db
 
 # Admin 預設密碼（可選）
-# 開發環境若未設定，系統會使用 fallback 密碼
+# 開發環境若未設定，系統會使用開發用 fallback 密碼
 # 正式環境必須設定強密碼
 DEFAULT_ADMIN_PASSWORD=your-strong-password-here
 ```

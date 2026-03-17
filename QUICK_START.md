@@ -164,10 +164,10 @@ VITE_API_BASE=http://localhost:8000
 ## 預設帳號
 
 - **帳號**: `admin`
-- **密碼**: 開發環境若未設定 `DEFAULT_ADMIN_PASSWORD`，系統會使用 fallback 密碼
+- **密碼**: 若未設定 `DEFAULT_ADMIN_PASSWORD`，系統會使用開發用 fallback 密碼
 - **角色**: `admin`
 
-⚠️ **重要**：正式環境必須自行設定強密碼！在 `.env` 中設定 `DEFAULT_ADMIN_PASSWORD`
+⚠️ **重要**：正式環境必須設定強密碼！在 `.env` 中設定 `DEFAULT_ADMIN_PASSWORD`
 
 ## 故障排除
 
@@ -214,5 +214,5 @@ npm ERR! code ERESOLVE
 
 ---
 
-**版本**: 3.9.0 Final  
+**版本**: 4.0.0 Final  
 **最後更新**: 2026-03-13

@@ -1,43 +1,105 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+﻿from __future__ import annotations
 
-# ============ 請求/回應模型 ============
+from datetime import datetime
+from typing import Any
 
-# 【修正 #4】模型定義註解：
-# 下列是實際 API 回傳的結構：
-# - /api/docs（一般使用者）：
-#   id, filename, file_size, uploaded_at, approved, is_active, uploaded_by, allowed_roles
-# - /api/admin/docs（admin）：
-#   id, filename, file_size, uploaded_at, approved, is_active, uploaded_by, allowed_roles
-# 【改進 #5】不回傳 saved_filename（內部檔名，不必暗露）
+from pydantic import BaseModel, ConfigDict, Field
 
-class QARequest(BaseModel):
-    """問答請求"""
-    question: str = Field(description="問題")
-    # 注意：使用者角色由 JWT token 決定，不由 request body 提供
+
+ROLE_VALUES = ("employee", "manager", "hr", "admin")
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
+class LoginRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=255)
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class MeResponse(BaseModel):
+    user_id: str
+    role: str
+    display_name: str
+
 
 class Source(BaseModel):
-    """引用來源"""
-    doc_name: str = Field(description="文件名稱")
-    chunk_text: str = Field(description="文本片段")
-    page_or_section: str = Field(description="頁碼或段落")
+    doc_name: str
+    chunk_text: str
+    page_or_section: str
+
+
+class QARequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
 
 class QAResponse(BaseModel):
-    """問答回應"""
-    answer: str = Field(description="回答")
-    sources: List[Source] = Field(default=[], description="引用來源")
+    answer: str
+    sources: list[Source] = Field(default_factory=list)
+
 
 class GenerateRequest(BaseModel):
-    """表單生成請求"""
-    template_type: str = Field(description="模板類型")
-    inputs: dict = Field(description="表單輸入")
-    # 注意：使用者角色由 JWT token 決定，不由 request body 提供
+    template_type: str = Field(min_length=1, max_length=100)
+    inputs: dict[str, Any] = Field(default_factory=dict)
+
 
 class GenerateResponse(BaseModel):
-    """表單生成回應"""
-    content: str = Field(description="生成的內容")
+    content: str
 
-# 【修正 #4】【簡化】移除未使用的 DocumentRecord
-# 原因：這個類定義已經不符合實際 API 的回傳結構
-# 且整個專案已經不依賴它，保留只會造成維護困擾
-# 殘留的 QARequest, QAResponse, GenerateRequest, GenerateResponse 是實際使用的
+
+class DocumentResponse(BaseModel):
+    id: str
+    filename: str
+    allowed_roles: list[str]
+    uploaded_at: datetime | str
+    file_size: int
+    uploaded_by: str | None = None
+    approved: int
+    is_active: int
+
+
+class UploadDocumentResponse(DocumentResponse):
+    message: str
+
+
+class AdminUserResponse(BaseModel):
+    user_id: str
+    display_name: str
+    role: str
+    is_active: int
+    created_at: datetime | str
+    updated_at: datetime | str
+
+
+class AdminUserCreateRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=8, max_length=255)
+    display_name: str = Field(min_length=1, max_length=100)
+    role: str = Field(default="employee")
+    is_active: int = Field(default=1)
+
+
+class AdminUserUpdateRequest(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=100)
+    password: str | None = Field(default=None, min_length=8, max_length=255)
+    role: str | None = None
+    is_active: int | None = None
+
+
+class AdminDocumentUpdateRequest(BaseModel):
+    allowed_roles: list[str] | None = None
+    approved: int | None = None
+    is_active: int | None = None
+
+
+class HealthResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    version: str

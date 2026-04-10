@@ -1,0 +1,27 @@
+﻿# Root artifacts
+.git/
+.env
+.env.*
+*.tar.gz
+*.zip
+
+# Python
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+backend/.env
+backend/*.db
+backend/chroma_db/
+backend/uploads/
+backend/tests/.pytest_cache/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

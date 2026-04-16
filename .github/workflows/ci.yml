@@ -1,0 +1,103 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-build-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+
+      - name: Backend pytest
+        run: |
+          cd backend
+          python -m pytest
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend install
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Frontend tests
+        run: |
+          cd frontend
+          npm test
+
+      - name: Frontend build
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Version consistency
+        run: |
+          python scripts/check_version_consistency.py
+
+      - name: Package release zip
+        run: |
+          bash scripts/package_release.sh ./enterprise_ai_release.zip
+
+      - name: Verify release zip exclusions
+        run: |
+          python - <<'PY'
+          import zipfile
+          bad = []
+          with zipfile.ZipFile("enterprise_ai_release.zip") as zf:
+            names = zf.namelist()
+          forbidden_parts = {".git", "node_modules", "dist", "__pycache__", "uploads", "photos", "chroma_db", "autotest_uploads"}
+          for name in names:
+            parts = set([p for p in name.split("/") if p])
+            if parts & forbidden_parts:
+              bad.append(name)
+            if name.endswith(".db") or name.endswith("/.env") or name.endswith(".env"):
+              bad.append(name)
+          if bad:
+            raise SystemExit("Forbidden paths in zip:\\n" + "\\n".join(sorted(set(bad))[:200]))
+          print("OK: zip exclusions")
+          PY
+
+      - name: Start backend (for smoke)
+        run: |
+          export JWT_SECRET="ci-secret"
+          export DEFAULT_OWNER_PASSWORD="OwnerPass123!"
+          export DATABASE_PATH="./ci_documents.db"
+          export UPLOAD_DIR="./ci_uploads"
+          export PHOTO_DIR="./ci_photos"
+          export CHROMA_DB_PATH="./ci_chroma"
+          export AUTOTEST_DIR="./ci_autotest"
+          export AUTOTEST_MODE="simulated"
+          cd backend
+          nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > ../ci_backend.log 2>&1 &
+          echo $! > ../ci_backend.pid
+
+      - name: Smoke check
+        run: |
+          python scripts/smoke_check.py --password "OwnerPass123!"
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f ci_backend.pid ]; then
+            kill "$(cat ci_backend.pid)" || true
+          fi
+          tail -n 200 ci_backend.log || true
+

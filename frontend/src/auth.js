@@ -1,4 +1,4 @@
-﻿export const AUTH_STORAGE_KEY = 'enterprise-ai.authToken'
+﻿export const AUTH_STORAGE_KEY = 'local-ai-engineer-workspace.authToken'
 export const UNAUTHORIZED_EVENT = 'auth:unauthorized'
 
 let currentToken = null

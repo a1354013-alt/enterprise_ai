@@ -1,0 +1,253 @@
+<template>
+  <div class="grid">
+    <Card>
+      <template #title>Run acceptance (install / build / test / lint)</template>
+      <template #subtitle>Upload a project zip and let the workspace run a basic pipeline and generate fix prompts via local AI.</template>
+      <template #content>
+        <div class="stack-md">
+          <div class="row">
+            <input ref="zipInput" type="file" accept=".zip" class="hidden-input" @change="onZipSelected" />
+            <Button label="Choose Zip" icon="pi pi-upload" outlined @click="openZipPicker" />
+            <span v-if="selectedZip" class="muted">{{ selectedZip.name }}</span>
+          </div>
+          <div class="row">
+            <Button label="Run" icon="pi pi-play" :loading="running" @click="runAutoTest" />
+            <Button label="Refresh" outlined icon="pi pi-refresh" :loading="loadingRuns" @click="loadRuns" />
+          </div>
+          <p class="muted">
+            Tip: keep zips small; steps have timeouts. Results are stored as structured data for later search.
+          </p>
+        </div>
+      </template>
+    </Card>
+
+    <Card>
+      <template #title>Recent runs</template>
+      <template #content>
+        <div class="stack-md">
+          <DataTable
+            :value="runs"
+            :loading="loadingRuns"
+            data-key="id"
+            size="small"
+            responsive-layout="scroll"
+            @row-click="onRunSelected"
+          >
+            <Column field="project_name" header="Project" />
+            <Column field="status" header="Status" />
+            <Column field="created_at" header="Created" />
+          </DataTable>
+        </div>
+      </template>
+    </Card>
+
+    <Card v-if="selectedRun">
+      <template #title>Run details</template>
+      <template #subtitle>{{ selectedRun.id }}</template>
+      <template #content>
+        <div class="stack-md">
+          <div class="result-box">
+            <h3>Execution</h3>
+            <p class="muted">Mode: {{ selectedRun.execution_mode || '-' }}</p>
+            <p class="muted">Project type detected: {{ selectedRun.project_type_detected || selectedRun.project_type || '-' }}</p>
+            <p class="muted">Working directory: {{ selectedRun.working_directory || '-' }}</p>
+          </div>
+
+          <div class="result-box">
+            <h3>Summary</h3>
+            <pre class="mono">{{ selectedRun.summary || '-' }}</pre>
+          </div>
+
+          <div class="result-box" v-if="selectedRun.suggestion">
+            <h3>Fix suggestion</h3>
+            <pre class="mono">{{ selectedRun.suggestion }}</pre>
+          </div>
+
+          <div class="result-box" v-if="selectedRun.problem_entry_id || selectedRun.solution_entry_id">
+            <h3>Knowledge capture</h3>
+            <p class="muted">Problem draft: {{ selectedRun.problem_entry_id || '-' }}</p>
+            <p class="muted">Solution entry: {{ selectedRun.solution_entry_id || '-' }}</p>
+            <div class="row" v-if="selectedRun.problem_entry_id && !selectedRun.solution_entry_id">
+              <Button label="Promote problem → verified solution" icon="pi pi-check" @click="promoteProblem" />
+            </div>
+          </div>
+
+          <div class="result-box" v-if="selectedRun.prompt_output">
+            <h3>Prompt output (for Codex/Copilot)</h3>
+            <pre class="mono">{{ selectedRun.prompt_output }}</pre>
+          </div>
+
+          <div class="result-box" v-if="selectedRun.steps?.length">
+            <h3>Steps</h3>
+            <article v-for="step in selectedRun.steps" :key="step.step_id" class="step-card">
+              <strong>{{ step.name }} · {{ step.status }}</strong>
+              <p class="muted">{{ step.command }}</p>
+              <pre class="mono">{{ step.output || step.stderr_summary || step.stdout_summary || '-' }}</pre>
+            </article>
+          </div>
+
+          <RelatedItemsPanel :item-id="`autotest_run:${selectedRun.id}`" />
+        </div>
+      </template>
+    </Card>
+  </div>
+</template>
+
+<script setup>
+import { onMounted, ref } from 'vue'
+import { useToast } from 'primevue/usetoast'
+import Button from 'primevue/button'
+import Card from 'primevue/card'
+import Column from 'primevue/column'
+import DataTable from 'primevue/datatable'
+
+import { apiClient } from '../api'
+import RelatedItemsPanel from './RelatedItemsPanel.vue'
+
+const toast = useToast()
+
+const zipInput = ref(null)
+const selectedZip = ref(null)
+
+const running = ref(false)
+const loadingRuns = ref(false)
+const runs = ref([])
+const selectedRun = ref(null)
+
+function openZipPicker() {
+  zipInput.value?.click()
+}
+
+function onZipSelected(event) {
+  selectedZip.value = event.target.files?.[0] || null
+}
+
+async function loadRuns() {
+  loadingRuns.value = true
+  try {
+    runs.value = await apiClient.get('/api/autotest/runs')
+  } catch (error) {
+    runs.value = []
+  } finally {
+    loadingRuns.value = false
+  }
+}
+
+async function runAutoTest() {
+  if (!selectedZip.value) {
+    toast.add({ severity: 'warn', summary: 'No zip selected', detail: 'Choose a project zip first.', life: 3000 })
+    return
+  }
+
+  running.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', selectedZip.value)
+    const response = await apiClient.post('/api/autotest/run', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    toast.add({ severity: 'success', summary: 'Run completed', detail: response.status || 'Done.', life: 3000 })
+    selectedZip.value = null
+    if (zipInput.value) {
+      zipInput.value.value = ''
+    }
+    await loadRuns()
+    if (response?.id) {
+      selectedRun.value = await apiClient.get(`/api/autotest/runs/${response.id}`)
+    }
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Run failed', detail: error.message, life: 5000 })
+  } finally {
+    running.value = false
+  }
+}
+
+async function onRunSelected(event) {
+  const item = event.data
+  if (!item?.id) {
+    return
+  }
+  try {
+    selectedRun.value = await apiClient.get(`/api/autotest/runs/${item.id}`)
+  } catch (error) {
+    selectedRun.value = null
+  }
+}
+
+async function promoteProblem() {
+  const entryId = selectedRun.value?.problem_entry_id
+  if (!entryId) {
+    return
+  }
+  if (!window.confirm('Promote this AutoTest problem draft to a verified knowledge entry?')) {
+    return
+  }
+  try {
+    const response = await apiClient.post(`/api/logbook/entries/${entryId}/promote-to-knowledge`)
+    toast.add({ severity: 'success', summary: 'Promoted', detail: `Knowledge entry: ${response.knowledge_entry_id}`, life: 4500 })
+    if (selectedRun.value?.id) {
+      selectedRun.value = await apiClient.get(`/api/autotest/runs/${selectedRun.value.id}`)
+    }
+    await loadRuns()
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Promote failed', detail: error.message, life: 5000 })
+  }
+}
+
+onMounted(loadRuns)
+</script>
+
+<style scoped>
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.stack-md {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.muted {
+  margin: 0;
+  color: #51606f;
+  font-size: 13px;
+}
+
+.result-box {
+  padding: 16px;
+  border-radius: 14px;
+  background: #f7fafc;
+}
+
+.step-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid #d8e1e8;
+}
+
+.mono {
+  white-space: pre-wrap;
+  margin: 8px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+@media (max-width: 1080px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -17,4 +17,4 @@ npm run build
 - `src/auth.js`: token storage, restore, clear, unauthorized event flow
 - `src/app-state.js`: default app state helpers
 - `src/App.vue`: login, token restore, documents, QA, templates
-- `src/components/AdminConsole.vue`: admin CRUD workflows
+- `src/components/AutoTestPanel.vue`: project acceptance runs + knowledge capture hooks

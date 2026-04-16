@@ -8,18 +8,20 @@ from typing import Any
 import jwt
 from fastapi import HTTPException, status
 
-from models import ROLE_VALUES
+from app.models import ROLE_VALUES
 
 
 logger = logging.getLogger("enterprise_ai")
 
-JWT_SECRET = os.getenv("JWT_SECRET", "").strip()
-if not JWT_SECRET:
-    raise RuntimeError("JWT_SECRET is required.")
-
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 ALLOWED_ROLES = set(ROLE_VALUES)
+
+def get_jwt_secret() -> str:
+    secret = os.getenv("JWT_SECRET", "").strip()
+    if not secret:
+        raise RuntimeError("JWT_SECRET is required.")
+    return secret
 
 
 def create_token(
@@ -39,12 +41,12 @@ def create_token(
         "iat": now,
         "exp": now + timedelta(hours=expires_in_hours),
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
 def verify_token(token: str) -> dict[str, Any]:
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

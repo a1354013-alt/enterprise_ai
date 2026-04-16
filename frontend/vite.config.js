@@ -9,6 +9,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  test: {
+    environment: 'happy-dom',
+    setupFiles: ['./tests/vitest.setup.js'],
+    include: ['tests/**/*.test.js'],
+    exclude: ['tests/run-tests.js', 'tests/app-state.test.js', 'tests/auth.test.js'],
+    restoreMocks: true,
+  },
   server: {
     port: 5173,
     host: true,

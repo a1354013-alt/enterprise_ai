@@ -14,7 +14,8 @@ test('initial user state is empty and safe for boot', () => {
 test('initial UI state does not crash workspace init', () => {
   const state = createInitialUiState()
   assert.deepEqual(state.documents, [])
-  assert.deepEqual(state.uploadRoles, ['employee'])
-  assert.equal(state.selectedTemplate, '')
-  assert.deepEqual(state.templates, [])
+  assert.deepEqual(state.photos, [])
+  assert.equal(state.activeSection, 'knowledge')
+  assert.deepEqual(state.knowledge.sources, [])
+  assert.deepEqual(state.logbook.entries, [])
 })

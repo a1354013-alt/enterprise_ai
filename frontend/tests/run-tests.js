@@ -1,5 +1,7 @@
 ﻿import assert from 'node:assert/strict'
 
+import { readFile } from 'node:fs/promises'
+
 const storage = {
   data: new Map(),
   getItem(key) {
@@ -31,10 +33,11 @@ if (!globalThis.addEventListener) {
 
 const auth = await import('../src/auth.js')
 const state = await import('../src/app-state.js')
+const api = await import('../src/api.js')
 
-function run(name, fn) {
+async function run(name, fn) {
   try {
-    fn()
+    await fn()
     console.log(`PASS ${name}`)
   } catch (error) {
     console.error(`FAIL ${name}`)
@@ -43,7 +46,7 @@ function run(name, fn) {
   }
 }
 
-run('token storage uses one persistent source', () => {
+await run('token storage uses one persistent source', () => {
   auth.clearToken()
   auth.setToken('abc123')
   assert.equal(auth.getToken(), 'abc123')
@@ -52,7 +55,7 @@ run('token storage uses one persistent source', () => {
   assert.equal(auth.restoreToken(), null)
 })
 
-run('unauthorized event notifies listeners once and can be removed', () => {
+await run('unauthorized event notifies listeners once and can be removed', () => {
   let detail = ''
   const cleanup = auth.onUnauthorized((event) => {
     detail = event.detail
@@ -65,7 +68,7 @@ run('unauthorized event notifies listeners once and can be removed', () => {
   assert.equal(detail, '')
 })
 
-run('initial user state is empty and safe for boot', () => {
+await run('initial user state is empty and safe for boot', () => {
   assert.deepEqual(state.createInitialUser(), {
     user_id: '',
     role: '',
@@ -73,10 +76,41 @@ run('initial user state is empty and safe for boot', () => {
   })
 })
 
-run('initial UI state does not crash workspace init', () => {
+await run('initial UI state does not crash workspace init', () => {
   const ui = state.createInitialUiState()
   assert.deepEqual(ui.documents, [])
-  assert.deepEqual(ui.uploadRoles, ['employee'])
-  assert.equal(ui.selectedTemplate, '')
-  assert.deepEqual(ui.templates, [])
+  assert.deepEqual(ui.photos, [])
+  assert.equal(ui.activeSection, 'knowledge')
+  assert.deepEqual(ui.knowledge.sources, [])
+  assert.deepEqual(ui.logbook.entries, [])
+})
+
+await run('bootstrap session clears token on any non-login 401', async () => {
+  auth.clearToken()
+  auth.setToken('token123')
+
+  const handler = api.apiClient.interceptors.response.handlers.find((item) => typeof item?.rejected === 'function')?.rejected
+  assert.equal(typeof handler, 'function')
+
+  await handler({
+    response: { status: 401, data: { detail: 'unauthorized' } },
+    config: { url: '/api/docs' },
+    message: 'unauthorized',
+  }).catch(() => {})
+  assert.equal(auth.getToken(), null)
+
+  auth.setToken('token123')
+  await handler({
+    response: { status: 401, data: { detail: 'bad creds' } },
+    config: { url: '/api/login' },
+    message: 'unauthorized',
+  }).catch(() => {})
+  assert.equal(auth.getToken(), 'token123')
+})
+
+await run('autotest panel uses /api/autotest and project_name field', async () => {
+  const contents = await readFile(new URL('../src/components/AutoTestPanel.vue', import.meta.url), 'utf-8')
+  assert.ok(contents.includes('/api/autotest/run'))
+  assert.ok(contents.includes('/api/autotest/runs'))
+  assert.ok(contents.includes('project_name'))
 })

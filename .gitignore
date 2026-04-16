@@ -9,10 +9,13 @@
 **/__pycache__/
 **/*.pyc
 .pytest_cache/
+**/.pytest-tmp/
 backend/.env
 backend/*.db
 backend/chroma_db/
 backend/uploads/
+backend/photos/
+backend/autotest_uploads/
 backend/tests/.pytest_cache/
 
 # Frontend

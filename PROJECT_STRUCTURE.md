@@ -3,14 +3,18 @@
 ```text
 enterprise_ai/
 ├── backend/
-│   ├── auth.py
-│   ├── database.py
-│   ├── dependencies.py
 │   ├── main.py
-│   ├── models.py
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── models.py
+│   │   ├── database.py
+│   │   ├── services.py
+│   │   ├── utils.py
+│   │   ├── kb_index.py
+│   │   ├── dependencies.py
+│   │   ├── auth.py
+│   │   └── llm/
 │   ├── requirements.txt
-│   ├── services.py
-│   ├── utils.py
 │   ├── .env.example
 │   └── tests/
 ├── frontend/
@@ -22,11 +26,11 @@ enterprise_ai/
 │   │   ├── components/
 │   │   └── main.js
 │   ├── tests/
-│   ├── .env.example
 │   ├── package.json
 │   └── vite.config.js
 ├── scripts/
-│   └── smoke_check.py
+│   ├── smoke_check.py
+│   └── package_release.sh
 ├── README.md
 ├── QUICK_START.md
 ├── DELIVERY_CHECKLIST.md

@@ -7,7 +7,7 @@ from typing import Iterable
 
 from fastapi import HTTPException, status
 
-from models import ROLE_VALUES
+from app.models import ROLE_VALUES
 
 
 MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -26,7 +26,7 @@ def validate_file_extension(filename: str) -> bool:
 
 def normalize_roles(roles: str | Iterable[str] | None, *, default: list[str] | None = None) -> list[str]:
     if default is None:
-        default = ["employee"]
+        default = ["user"]
 
     if roles is None:
         normalized = list(default)

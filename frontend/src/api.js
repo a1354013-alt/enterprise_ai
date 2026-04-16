@@ -1,7 +1,7 @@
 ﻿import axios from 'axios'
-import { clearToken, getToken, notifyUnauthorized } from './auth'
+import { clearToken, getToken, notifyUnauthorized } from './auth.js'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+const API_BASE_URL = import.meta?.env?.VITE_API_BASE || process.env.VITE_API_BASE || 'http://localhost:8000'
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -22,8 +22,9 @@ apiClient.interceptors.response.use(
   (error) => {
     const status = error.response?.status ?? 0
     const detail = error.response?.data?.detail || error.message || 'Request failed.'
+    const requestUrl = String(error.config?.url || '')
 
-    if (status === 401) {
+    if (status === 401 && !requestUrl.includes('/api/login')) {
       clearToken()
       notifyUnauthorized(detail)
     }

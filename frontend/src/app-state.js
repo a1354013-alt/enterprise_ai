@@ -1,4 +1,4 @@
-﻿export function createInitialUser() {
+export function createInitialUser() {
   return {
     user_id: '',
     role: '',
@@ -8,16 +8,33 @@
 
 export function createInitialUiState() {
   return {
-    showAdminConsole: false,
+    activeSection: 'knowledge',
     documents: [],
-    selectedFile: null,
-    uploadRoles: ['employee'],
-    qaQuestion: '',
-    qaAnswer: '',
-    qaSources: [],
-    selectedTemplate: '',
-    formInputs: {},
-    generatedContent: '',
-    templates: [],
+    photos: [],
+    knowledge: {
+      question: '',
+      answer: '',
+      sources: [],
+      recentEntries: [],
+    },
+    logbook: {
+      entries: [],
+    },
+    docsPhotos: {
+      selectedDocFile: null,
+      docTags: '',
+      docCategory: '',
+      selectedPhotoFile: null,
+      photoTags: '',
+      photoDescription: '',
+    },
+    autoTest: {
+      runs: [],
+      selectedRun: null,
+    },
+    settings: {
+      showAdminConsole: false,
+    },
   }
 }
+

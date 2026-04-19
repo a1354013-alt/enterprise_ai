@@ -36,7 +36,7 @@ def validate_env_vars() -> None:
     default_pwd = os.getenv("DEFAULT_OWNER_PASSWORD", os.getenv("DEFAULT_ADMIN_PASSWORD", ""))
     if default_pwd in ("ChangeMe123!", "owner12345", "admin123"):
         import logging
-        logger = logging.getLogger("enterprise_ai")
+        logger = logging.getLogger("knowledge_workspace")
         logger.warning(
             "DEFAULT_OWNER_PASSWORD is set to a weak default value. "
             "Please change it in production."

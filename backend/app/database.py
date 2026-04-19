@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 """SQLite + vector DB persistence layer."""
 
@@ -21,17 +21,18 @@ except ImportError:  # pragma: no cover - optional runtime dependency
     embedding_functions = None
 
 
-logger = logging.getLogger("enterprise_ai")
+logger = logging.getLogger("knowledge_workspace")
 
 _EMBEDDING_FUNCTION = None
 _COLLECTION = None
 _KB_COLLECTION = None
 _PASSWORD_ITERATIONS = 120000
+LINK_TYPE_VALUES = ("references", "derived_from", "produced")
 WORKFLOW_STATUS_VALUES = ("draft", "reviewed", "verified", "archived")
 KNOWLEDGE_STATUS_VALUES = WORKFLOW_STATUS_VALUES
 LOGBOOK_STATUS_VALUES = WORKFLOW_STATUS_VALUES
-DOC_STATUS_VALUES = ("draft", "reviewed", "archived")
-PHOTO_STATUS_VALUES = ("draft", "reviewed", "archived")
+DOC_STATUS_VALUES = WORKFLOW_STATUS_VALUES
+PHOTO_STATUS_VALUES = WORKFLOW_STATUS_VALUES
 AUTOTEST_STATUS_VALUES = ("queued", "running", "passed", "failed")
 
 
@@ -236,7 +237,7 @@ class DocumentDatabase:
                     link_id TEXT PRIMARY KEY,
                     from_item_id TEXT NOT NULL,
                     to_item_id TEXT NOT NULL,
-                    link_type TEXT NOT NULL DEFAULT 'related',
+                    link_type TEXT NOT NULL DEFAULT 'references',
                     created_at TEXT NOT NULL
                 )
                 """
@@ -262,8 +263,19 @@ class DocumentDatabase:
             self._migrate_photos_table(cursor)
             self._migrate_saved_prompts_table(cursor)
             self._migrate_autotest_tables(cursor)
+            self._migrate_item_links_table(cursor)
             self._seed_owner_user(cursor)
             conn.commit()
+
+    def _migrate_item_links_table(self, cursor: sqlite3.Cursor) -> None:
+        # Older versions used a generic 'related' link_type; normalize it to 'references'.
+        cursor.execute(
+            """
+            UPDATE item_links
+            SET link_type = 'references'
+            WHERE link_type IN ('related', 'reference', 'ref', '')
+            """
+        )
 
     def _migrate_users_table(self, cursor: sqlite3.Cursor) -> None:
         cursor.execute("UPDATE users SET role = 'owner' WHERE role != 'owner'")
@@ -843,9 +855,12 @@ class DocumentDatabase:
             conn.commit()
             return cursor.rowcount > 0
 
-    def add_link(self, from_item_id: str, to_item_id: str, link_type: str = "related") -> bool:
+    def add_link(self, from_item_id: str, to_item_id: str, link_type: str = "references") -> bool:
         now = utc_now_iso()
         link_id = uuid.uuid4().hex
+        normalized_type = str(link_type or "").strip() or "references"
+        if normalized_type not in LINK_TYPE_VALUES:
+            raise ValueError(f"Unsupported link_type: {normalized_type}")
         with self._connection() as conn:
             exists = conn.execute(
                 """
@@ -853,7 +868,7 @@ class DocumentDatabase:
                 WHERE from_item_id = ? AND to_item_id = ? AND link_type = ?
                 LIMIT 1
                 """,
-                (str(from_item_id), str(to_item_id), str(link_type)),
+                (str(from_item_id), str(to_item_id), normalized_type),
             ).fetchone()
             if exists:
                 return False
@@ -863,7 +878,7 @@ class DocumentDatabase:
                     INSERT INTO item_links (link_id, from_item_id, to_item_id, link_type, created_at)
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (link_id, from_item_id, to_item_id, link_type, now),
+                    (link_id, from_item_id, to_item_id, normalized_type, now),
                 )
                 conn.commit()
                 return True

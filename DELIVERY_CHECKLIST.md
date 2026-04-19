@@ -1,4 +1,4 @@
-﻿# Delivery Checklist
+# Delivery Checklist
 
 ## Pre-delivery cleanup
 

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -13,7 +13,7 @@ from app.llm import get_llm_provider
 from app.models import Source
 
 
-logger = logging.getLogger("enterprise_ai")
+logger = logging.getLogger("knowledge_workspace")
 
 
 def split_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list[str]:

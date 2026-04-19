@@ -151,6 +151,8 @@ const documents = ref([])
 const photos = ref([])
 const prompts = ref([])
 const autotestRuns = ref([])
+const knowledgeEntries = ref([])
+const logbookEntries = ref([])
 
 const sourceTypes = [
   { label: 'Manual', value: 'manual' },
@@ -182,7 +184,15 @@ const pickerOptions = computed(() => {
     label: `AutoTest: ${run.project_name || run.id}`,
     value: `autotest_run:${run.id}`,
   }))
-  return [...docOptions, ...photoOptions, ...runOptions, ...promptOptions]
+  const knowledgeOptions = knowledgeEntries.value.map((entry) => ({
+    label: `Knowledge: ${entry.title || entry.id}`,
+    value: `knowledge:${entry.id}`,
+  }))
+  const logbookOptions = logbookEntries.value.map((entry) => ({
+    label: `Logbook: ${entry.title || entry.id}`,
+    value: `logbook:${entry.id}`,
+  }))
+  return [...docOptions, ...photoOptions, ...runOptions, ...promptOptions, ...knowledgeOptions, ...logbookOptions]
 })
 
 const filteredRecent = computed(() => {
@@ -275,6 +285,7 @@ async function loadRecent() {
     recent.value = await apiClient.get('/api/knowledge/entries')
   } catch (error) {
     recent.value = []
+    toast.add({ severity: 'error', summary: 'Load failed', detail: error.message, life: 3500 })
   } finally {
     loadingRecent.value = false
   }
@@ -282,16 +293,20 @@ async function loadRecent() {
 
 async function loadPickers() {
   try {
-    const [docs, imgs, runs, promptList] = await Promise.all([
+    const [docs, imgs, runs, promptList, kbEntries, lbEntries] = await Promise.all([
       apiClient.get('/api/docs'),
       apiClient.get('/api/photos'),
       apiClient.get('/api/autotest/runs'),
       apiClient.get('/api/prompts'),
+      apiClient.get('/api/knowledge/entries'),
+      apiClient.get('/api/logbook/entries'),
     ])
     documents.value = docs || []
     photos.value = imgs || []
     autotestRuns.value = runs || []
     prompts.value = promptList || []
+    knowledgeEntries.value = kbEntries || []
+    logbookEntries.value = lbEntries || []
   } catch {
     // ignore (pickers are optional)
   }

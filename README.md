@@ -1,4 +1,4 @@
-# 🧠 Personal AI Knowledge Workspace for Engineers
+# Knowledge Workspace
 
 <div align="center">
 
@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![Node](https://img.shields.io/badge/node-20+-green.svg)
-![CI](https://github.com/actions/workflow/status/ci.yml/badge.svg)
+![CI](https://github.com/actions/workflows/ci.yml/badge.svg)
 
 **Local-first workspace for knowledge capture + traceable retrieval**
 
@@ -322,7 +322,7 @@ Upload ZIP → Detect Project Type → Run Tests → Generate Report
 ### Project Structure
 
 ```
-enterprise_ai/
+Knowledge_Workspace/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py           # FastAPI app & routes
@@ -468,7 +468,7 @@ pip install -r requirements.txt
 ### Release Packaging
 
 ```bash
-bash scripts/package_release.sh ./enterprise_ai_release.zip
+bash scripts/package_release.sh ./knowledge_workspace_release.zip
 ```
 
 This creates a zip containing:

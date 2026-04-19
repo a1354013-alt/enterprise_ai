@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -55,10 +55,11 @@ from app.models import (
     SavedPromptCreateRequest,
     SavedPromptResponse,
     SettingsLLMResponse,
+    SettingsOCRResponse,
     UploadDocumentResponse,
     UploadPhotoResponse,
 )
-from app.ocr_service import extract_text_from_image
+from app.ocr_service import extract_text_from_image, get_ocr_status
 from app.services import FORM_TEMPLATES, generate_form, perform_qa, process_file
 from app.utils import generate_safe_filename, get_env_list, stream_write_file, validate_file_extension
 
@@ -77,7 +78,7 @@ def read_app_version() -> str:
 
 
 APP_VERSION = read_app_version()
-logger = logging.getLogger("enterprise_ai")
+logger = logging.getLogger("knowledge_workspace")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
@@ -248,7 +249,7 @@ def build_links_response(*, item_id: str, user_id: str) -> ItemLinksResponse:
                 link_id=str(link.get("link_id", "") or ""),
                 from_item_id=from_item_id,
                 to_item_id=to_item_id,
-                link_type=str(link.get("link_type", "") or "related"),
+                link_type=str(link.get("link_type", "") or "references"),
                 created_at=str(link.get("created_at", "") or ""),
                 other_item=resolve_item_summary(item_id=other_id, user_id=user_id),
             )
@@ -367,6 +368,23 @@ def _run_command(*, argv: list[str], cwd: Path, timeout_seconds: int) -> tuple[i
     env.setdefault("CI", "true")
     env.setdefault("PYTHONUNBUFFERED", "1")
     env.setdefault("PIP_DISABLE_PIP_VERSION_CHECK", "1")
+    preexec_fn = None
+    if os.name == "posix":
+        try:
+            import resource  # POSIX only
+
+            cpu_limit = int(os.getenv("AUTOTEST_RLIMIT_CPU_SECONDS", str(timeout_seconds + 10)))
+            as_limit_mb = int(os.getenv("AUTOTEST_RLIMIT_AS_MB", "2048"))
+            fsize_mb = int(os.getenv("AUTOTEST_RLIMIT_FSIZE_MB", "200"))
+
+            def _apply_limits():
+                resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, cpu_limit))
+                resource.setrlimit(resource.RLIMIT_AS, (as_limit_mb * 1024 * 1024, as_limit_mb * 1024 * 1024))
+                resource.setrlimit(resource.RLIMIT_FSIZE, (fsize_mb * 1024 * 1024, fsize_mb * 1024 * 1024))
+
+            preexec_fn = _apply_limits
+        except Exception as exc:
+            logger.warning("AutoTest resource limits unavailable: %s", exc)
     completed = subprocess.run(
         argv,
         cwd=str(cwd),
@@ -375,6 +393,7 @@ def _run_command(*, argv: list[str], cwd: Path, timeout_seconds: int) -> tuple[i
         text=True,
         timeout=timeout_seconds,
         env=env,
+        preexec_fn=preexec_fn,
     )
     stdout = completed.stdout or ""
     stderr = completed.stderr or ""
@@ -533,7 +552,7 @@ async def lifespan(app: FastAPI):
         logger.error("Environment validation failed: %s", exc)
         raise
     
-    logger.info("Local AI Engineer Workspace API starting.")
+    logger.info("Knowledge Workspace API starting.")
     logger.info("CORS origins: %s", allowed_origins)
     
     # Log LLM provider status
@@ -548,11 +567,11 @@ async def lifespan(app: FastAPI):
         logger.warning("Failed to initialize LLM provider: %s", exc)
     
     yield
-    logger.info("Local AI Engineer Workspace API stopped.")
+    logger.info("Knowledge Workspace API stopped.")
 
 
 app = FastAPI(
-    title="Local AI Engineer Workspace API",
+    title="Knowledge Workspace API",
     version=APP_VERSION,
     lifespan=lifespan,
 )
@@ -671,6 +690,16 @@ async def llm_settings(current_user: dict = Depends(get_current_user)) -> Settin
         base_url=str(status_payload.get("base_url", "")),
         healthy=bool(healthy),
         fallback_mode=bool(status_payload.get("fallback_mode", False)),
+    )
+
+
+@app.get("/api/settings/ocr", response_model=SettingsOCRResponse)
+async def ocr_settings(current_user: dict = Depends(get_current_user)) -> SettingsOCRResponse:
+    _ = current_user
+    status_payload = get_ocr_status()
+    return SettingsOCRResponse(
+        enabled=bool(status_payload.get("enabled", False)),
+        available=bool(status_payload.get("available", False)),
     )
 
 

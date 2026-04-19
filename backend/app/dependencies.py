@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 from typing import Any
@@ -8,7 +8,7 @@ from fastapi import Header
 from app.auth import extract_token_from_header, verify_token
 
 
-logger = logging.getLogger("enterprise_ai")
+logger = logging.getLogger("knowledge_workspace")
 
 
 async def get_current_user(authorization: str | None = Header(default=None)) -> dict[str, Any]:

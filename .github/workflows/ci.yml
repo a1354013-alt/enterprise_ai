@@ -54,14 +54,14 @@ jobs:
 
       - name: Package release zip
         run: |
-          bash scripts/package_release.sh ./enterprise_ai_release.zip
+          bash scripts/package_release.sh ./knowledge_workspace_release.zip
 
       - name: Verify release zip exclusions
         run: |
           python - <<'PY'
           import zipfile
           bad = []
-          with zipfile.ZipFile("enterprise_ai_release.zip") as zf:
+          with zipfile.ZipFile("knowledge_workspace_release.zip") as zf:
             names = zf.namelist()
           forbidden_parts = {".git", "node_modules", "__pycache__", "uploads", "photos", "chroma_db", "autotest_uploads"}
           for name in names:
@@ -100,4 +100,3 @@ jobs:
             kill "$(cat ci_backend.pid)" || true
           fi
           tail -n 200 ci_backend.log || true
-

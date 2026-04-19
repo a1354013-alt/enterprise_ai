@@ -96,6 +96,11 @@ class SettingsLLMResponse(StrictModel):
     fallback_mode: bool
 
 
+class SettingsOCRResponse(StrictModel):
+    enabled: bool
+    available: bool
+
+
 class KnowledgeEntryCreateRequest(StrictModel):
     title: str = Field(default="", max_length=200)
     problem: str = Field(min_length=1, max_length=8000)

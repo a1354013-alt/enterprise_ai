@@ -39,11 +39,29 @@
         </div>
       </template>
     </Card>
+
+    <Card>
+      <template #title>OCR</template>
+      <template #subtitle>Extract text from photos for search. Controlled by backend environment variables.</template>
+      <template #content>
+        <div class="stack-md">
+          <Button label="Refresh" outlined icon="pi pi-refresh" :loading="loadingOcr" @click="loadOcrStatus" />
+          <div class="kv">
+            <div class="key">Enabled</div>
+            <div class="value">{{ ocr.enabled ? 'yes' : 'no' }}</div>
+            <div class="key">Available</div>
+            <div class="value">{{ ocr.available ? 'yes' : 'no' }}</div>
+          </div>
+          <p class="muted">Set `OCR_ENABLED=0` to disable OCR on the backend.</p>
+        </div>
+      </template>
+    </Card>
   </div>
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 
@@ -58,6 +76,8 @@ defineProps({
 
 const loading = ref(false)
 const loadingTemplates = ref(false)
+const loadingOcr = ref(false)
+const toast = useToast()
 const status = ref({
   provider: '',
   model: '',
@@ -66,6 +86,7 @@ const status = ref({
   fallback_mode: true,
 })
 const templates = ref([])
+const ocr = ref({ enabled: false, available: false })
 
 async function loadStatus() {
   loading.value = true
@@ -73,6 +94,7 @@ async function loadStatus() {
     status.value = await apiClient.get('/api/settings/llm')
   } catch (error) {
     status.value = { provider: 'unknown', model: '', base_url: '', healthy: false, fallback_mode: true }
+    toast.add({ severity: 'error', summary: 'LLM status failed', detail: error.message, life: 3500 })
   } finally {
     loading.value = false
   }
@@ -87,12 +109,27 @@ async function loadTemplates() {
     templates.value = payload?.templates || []
   } catch (error) {
     templates.value = []
+    toast.add({ severity: 'error', summary: 'Template load failed', detail: error.message, life: 3500 })
   } finally {
     loadingTemplates.value = false
   }
 }
 
 onMounted(loadTemplates)
+
+async function loadOcrStatus() {
+  loadingOcr.value = true
+  try {
+    ocr.value = await apiClient.get('/api/settings/ocr')
+  } catch (error) {
+    ocr.value = { enabled: false, available: false }
+    toast.add({ severity: 'error', summary: 'OCR status failed', detail: error.message, life: 3500 })
+  } finally {
+    loadingOcr.value = false
+  }
+}
+
+onMounted(loadOcrStatus)
 </script>
 
 <style scoped>

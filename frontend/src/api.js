@@ -1,4 +1,4 @@
-﻿import axios from 'axios'
+import axios from 'axios'
 import { clearToken, getToken, notifyUnauthorized } from './auth.js'
 
 const API_BASE_URL = import.meta?.env?.VITE_API_BASE || process.env.VITE_API_BASE || 'http://localhost:8000'

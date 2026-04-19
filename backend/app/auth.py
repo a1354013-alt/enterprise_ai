@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 import os
@@ -11,7 +11,7 @@ from fastapi import HTTPException, status
 from app.models import ROLE_VALUES
 
 
-logger = logging.getLogger("enterprise_ai")
+logger = logging.getLogger("knowledge_workspace")
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24

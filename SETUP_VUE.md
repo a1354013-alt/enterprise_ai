@@ -1,4 +1,4 @@
-﻿# Frontend Setup
+# Frontend Setup
 
 Frontend lives in `frontend/` and expects the backend at `http://localhost:8000` by default.
 

@@ -2,13 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT_ZIP="${1:-"$ROOT_DIR/enterprise_ai_release.zip"}"
+OUT_ZIP="${1:-"$ROOT_DIR/knowledge_workspace_release.zip"}"
 
 STAGE_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$STAGE_DIR"; }
 trap cleanup EXIT
 
-RELEASE_ROOT="$STAGE_DIR/enterprise_ai"
+RELEASE_ROOT="$STAGE_DIR/knowledge_workspace"
 mkdir -p "$RELEASE_ROOT"
 
 cp -R "$ROOT_DIR/backend" "$RELEASE_ROOT/"

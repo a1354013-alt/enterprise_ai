@@ -1,6 +1,6 @@
 """LLM provider abstraction and adapters."""
 
-from .factory import get_llm_provider
+from .factory import get_llm_provider, validate_env_vars
 from .providers import (
     FallbackProvider,
     LLMProvider,
@@ -20,4 +20,5 @@ __all__ = [
     "NoopProvider",
     "OllamaProvider",
     "get_llm_provider",
+    "validate_env_vars",
 ]

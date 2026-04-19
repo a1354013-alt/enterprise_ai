@@ -1,4 +1,4 @@
-﻿# Frontend Overview
+# Frontend Overview
 
 This folder contains the only supported frontend delivery tree.
 

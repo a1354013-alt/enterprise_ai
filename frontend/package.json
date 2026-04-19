@@ -1,7 +1,7 @@
 {
-  "name": "local-ai-engineer-workspace-frontend",
+  "name": "knowledge-workspace-frontend",
   "version": "5.0.0",
-  "description": "Local-first AI engineer workspace frontend",
+  "description": "Knowledge Workspace frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -1364,6 +1364,7 @@ async def delete_saved_prompt(prompt_id: str, current_user: dict = Depends(get_c
 @app.post("/api/autotest/run", response_model=AutoTestRunResponse)
 @limiter.limit("3/minute")  # Rate limit: 3 requests per minute (resource-intensive operation)
 async def run_autotest(
+    request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ) -> AutoTestRunResponse:

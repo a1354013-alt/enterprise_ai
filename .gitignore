@@ -1,31 +1,34 @@
 ```
-# Dependencies
-node_modules/
+# Test temporary directories
+.backend/.pytest-tmp/
 
-# Build artifacts
-dist/
-build/
-*.o
-*.obj
-*.out
+# Database files
+*.db
+*.sqlite3
 
-# Logs and temp files
-*.log
-*.tmp
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# Python
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Coverage reports
+.coverage
+htmlcov/
+coverage/
+
+# pytest cache
+.pytest_cache/
 ```

@@ -298,5 +298,10 @@ class ResolveItemsRequest(StrictModel):
     item_ids: list[str] = Field(default_factory=list)
 
 
+
 class ResolveItemsResponse(StrictModel):
     items: list[ItemSummary] = Field(default_factory=list)
+
+# --- Ensure all forward references are resolved at import time ---
+from pydantic import BaseModel
+BaseModel.model_rebuild()

@@ -20,8 +20,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from app.auth import create_token
 from app.core.config import get_settings
+from app.core.security import create_token
 from app.database import DocumentDatabase, delete_from_kb_vector_db, delete_from_vector_db
 from app.dependencies import get_current_user
 from app.kb_index import index_knowledge_entry, index_logbook_entry, index_photo, index_saved_prompt
@@ -1281,7 +1281,7 @@ async def resolve_items(request: ResolveItemsRequest, current_user: dict = Depen
 @limiter.limit("10/minute")  # Rate limit: 10 requests per minute to prevent abuse
 async def qa(request: Request, payload: QARequest, current_user: dict = Depends(get_current_user)) -> QAResponse:
     _ = request
-    answer, sources = await perform_qa(payload.question, current_user["sub"])
+    answer, sources = await perform_qa(payload.question, current_user["sub"], db)
     logger.info("QA request by %s returned %s sources", current_user["sub"], len(sources))
     return QAResponse(answer=answer, sources=sources)
 

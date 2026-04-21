@@ -46,7 +46,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -56,20 +56,21 @@ import DataTable from 'primevue/datatable'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 
-import { apiClient } from '../api'
+import { del, get, post } from '../api'
 import RelatedItemsPanel from './RelatedItemsPanel.vue'
+import type { MessageResponse, SavedPromptCreateRequest, SavedPromptResponse } from '../types'
 
 const toast = useToast()
 
 const loading = ref(false)
 const saving = ref(false)
-const prompts = ref([])
+const prompts = ref<SavedPromptResponse[]>([])
 const filterText = ref('')
 const selectedRelatedItemId = ref('')
 
-const form = ref(createBlankForm())
+const form = ref<SavedPromptCreateRequest>(createBlankForm())
 
-function createBlankForm() {
+function createBlankForm(): SavedPromptCreateRequest {
   return { title: '', content: '', tags: '' }
 }
 
@@ -91,8 +92,8 @@ const filteredPrompts = computed(() => {
 async function loadPrompts() {
   loading.value = true
   try {
-    prompts.value = await apiClient.get('/api/prompts')
-  } catch (error) {
+    prompts.value = await get<SavedPromptResponse[]>('/api/prompts')
+  } catch {
     prompts.value = []
   } finally {
     loading.value = false
@@ -100,7 +101,7 @@ async function loadPrompts() {
 }
 
 async function savePrompt() {
-  const payload = {
+  const payload: SavedPromptCreateRequest = {
     title: String(form.value.title || '').trim(),
     content: String(form.value.content || '').trim(),
     tags: String(form.value.tags || '').trim(),
@@ -112,18 +113,19 @@ async function savePrompt() {
 
   saving.value = true
   try {
-    await apiClient.post('/api/prompts', payload)
+    await post<MessageResponse, SavedPromptCreateRequest>('/api/prompts', payload)
     toast.add({ severity: 'success', summary: 'Saved', detail: 'Prompt saved.', life: 3000 })
     resetForm()
     await loadPrompts()
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4500 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Save failed', detail: apiError?.message || 'Request failed.', life: 4500 })
   } finally {
     saving.value = false
   }
 }
 
-async function deletePrompt(item) {
+async function deletePrompt(item: SavedPromptResponse) {
   if (!item?.id) {
     return
   }
@@ -131,15 +133,16 @@ async function deletePrompt(item) {
     return
   }
   try {
-    await apiClient.delete(`/api/prompts/${item.id}`)
+    await del<MessageResponse>(`/api/prompts/${item.id}`)
     await loadPrompts()
     toast.add({ severity: 'success', summary: 'Deleted', detail: 'Prompt removed.', life: 3000 })
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Delete failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Delete failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
-async function copyPrompt(item) {
+async function copyPrompt(item: SavedPromptResponse) {
   const text = String(item?.content || '')
   if (!text) {
     return
@@ -152,7 +155,7 @@ async function copyPrompt(item) {
   }
 }
 
-function selectForRelated(item) {
+function selectForRelated(item: SavedPromptResponse) {
   if (!item?.id) {
     return
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createInitialUiState, createInitialUser } from '../src/app-state.js'
+import { createInitialUiState, createInitialUser } from '../src/app-state'
 
 describe('app-state', () => {
   it('initial user state is empty and safe for boot', () => {

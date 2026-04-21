@@ -8,7 +8,7 @@ try:
 except ImportError:  # pragma: no cover - optional runtime dependency
     PdfReader = None
 
-from app.database import add_to_vector_db, query_kb_vector_db, query_vector_db
+from app.database import DocumentDatabase, add_to_vector_db, query_kb_vector_db, query_vector_db
 from app.llm import get_llm_provider
 from app.models import Source
 
@@ -98,12 +98,138 @@ Rules:
 """
 
 
-async def perform_qa(question: str, user_id: str) -> tuple[str, list[Source]]:
+def _fallback_sources_from_db(*, db: DocumentDatabase, question: str, user_id: str, limit: int = 5) -> list[Source]:
+    keyword = str(question or "").strip()
+    if not keyword:
+        return []
+
+    hits = db.search_items(user_id=user_id, keyword=keyword, limit=int(limit))
+    sources: list[Source] = []
+
+    for hit in hits:
+        item_type = str(hit.get("item_type", "") or "")
+        item_id = str(hit.get("item_id", "") or "")
+        title = str(hit.get("title", "") or "unknown")
+
+        snippet = ""
+        try:
+            if item_type == "knowledge":
+                entry = db.get_knowledge_entry(item_id) or {}
+                snippet = "\n".join(
+                    part
+                    for part in [
+                        str(entry.get("title", "") or ""),
+                        str(entry.get("problem", "") or ""),
+                        str(entry.get("solution", "") or ""),
+                        str(entry.get("tags", "") or ""),
+                        str(entry.get("source_ref", "") or ""),
+                    ]
+                    if part.strip()
+                )
+            elif item_type == "logbook":
+                entry = db.get_logbook_entry(item_id) or {}
+                snippet = "\n".join(
+                    part
+                    for part in [
+                        str(entry.get("title", "") or ""),
+                        str(entry.get("problem", "") or ""),
+                        str(entry.get("solution", "") or ""),
+                        str(entry.get("tags", "") or ""),
+                        str(entry.get("source_ref", "") or ""),
+                    ]
+                    if part.strip()
+                )
+            elif item_type == "document":
+                doc = db.get_document(item_id) or {}
+                snippet = "\n".join(
+                    part
+                    for part in [
+                        str(doc.get("filename", "") or ""),
+                        str(doc.get("category", "") or ""),
+                        str(doc.get("tags", "") or ""),
+                        str(doc.get("status", "") or ""),
+                    ]
+                    if part.strip()
+                )
+            elif item_type == "photo":
+                photo = db.get_photo(item_id) or {}
+                snippet = "\n".join(
+                    part
+                    for part in [
+                        str(photo.get("filename", "") or ""),
+                        str(photo.get("tags", "") or ""),
+                        str(photo.get("description", "") or ""),
+                        str(photo.get("ocr_text", "") or ""),
+                    ]
+                    if part.strip()
+                )
+            elif item_type == "prompt":
+                prompt = db.get_saved_prompt(item_id) or {}
+                snippet = "\n".join(
+                    part
+                    for part in [
+                        str(prompt.get("title", "") or ""),
+                        str(prompt.get("tags", "") or ""),
+                        str(prompt.get("content", "") or ""),
+                    ]
+                    if part.strip()
+                )
+            elif item_type == "autotest_run":
+                run = db.get_autotest_run(run_id=item_id, created_by=user_id) or {}
+                snippet = "\n".join(
+                    part
+                    for part in [
+                        str(run.get("project_name", "") or ""),
+                        str(run.get("summary", "") or ""),
+                        str(run.get("suggestion", "") or ""),
+                    ]
+                    if part.strip()
+                )
+        except Exception:
+            snippet = ""
+
+        snippet = (snippet or title).strip().replace("\r", "\n")
+        sources.append(
+            Source(
+                source_type=item_type,
+                title=title,
+                location=None,
+                snippet=snippet[:240],
+            )
+        )
+
+    return sources
+
+
+async def perform_qa(question: str, user_id: str, db: DocumentDatabase) -> tuple[str, list[Source]]:
     doc_results = query_vector_db(question, user_id, n_results=4)
     kb_results = query_kb_vector_db(question, user_id, n_results=4)
     results = doc_results + kb_results
     if not results:
-        return 'No relevant knowledge was found yet. Try uploading a document or adding a logbook entry.', []
+        fallback_sources = _fallback_sources_from_db(db=db, question=question, user_id=user_id, limit=5)
+        if not fallback_sources:
+            return 'No relevant knowledge was found yet. Try uploading a document or adding a logbook entry.', []
+        context_parts = [f"[{src.source_type}:{src.title}]\n{src.snippet}" for src in fallback_sources]
+
+        provider, _status = get_llm_provider()
+        try:
+            context = "\n\n".join(context_parts)
+            response = await provider.generate(
+                system=SYSTEM_PROMPT,
+                prompt=f"Context:\n{context}\n\nQuestion:\n{question}",
+                temperature=0.2,
+            )
+            if response.text.strip():
+                return response.text, fallback_sources
+        except Exception as exc:
+            logger.warning("LLM provider unavailable; falling back to retrieval-only answer: %s", exc)
+
+        joined = "\n\n".join(context_parts[:3]).strip()
+        fallback_answer = (
+            "LLM provider is unavailable right now, so here are the most relevant context snippets I found:\n\n"
+            f"{joined}" if joined else "LLM provider is unavailable right now, and no relevant context was found."
+        )
+        return fallback_answer, fallback_sources
 
     sources: list[Source] = []
     context_parts: list[str] = []

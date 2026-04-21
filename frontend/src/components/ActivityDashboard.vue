@@ -37,7 +37,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -45,12 +45,30 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import InputText from 'primevue/inputtext'
 
-import { apiClient } from '../api'
+import { get } from '../api'
 import RelatedItemsPanel from './RelatedItemsPanel.vue'
+import type {
+  AutoTestRunListItemResponse,
+  DocumentResponse,
+  KnowledgeEntryResponse,
+  LogbookEntryResponse,
+  PhotoResponse,
+  SavedPromptResponse,
+} from '../types'
 
 const loading = ref(false)
 const filterText = ref('')
-const items = ref([])
+
+type ActivityRow = {
+  kind: string
+  title: string
+  status: string
+  source: string
+  when: string
+  item_id: string
+}
+
+const items = ref<ActivityRow[]>([])
 const selectedItemId = ref('')
 
 const filtered = computed(() => {
@@ -64,11 +82,11 @@ const filtered = computed(() => {
   })
 })
 
-function normalizeWhen(value) {
+function normalizeWhen(value: string) {
   return String(value || '').replace('T', ' ').replace('Z', '')
 }
 
-function byWhenDesc(a, b) {
+function byWhenDesc(a: ActivityRow, b: ActivityRow) {
   return String(b.when || '').localeCompare(String(a.when || ''))
 }
 
@@ -76,15 +94,15 @@ async function load() {
   loading.value = true
   try {
     const [knowledge, logbook, docs, photos, runs, prompts] = await Promise.all([
-      apiClient.get('/api/knowledge/entries'),
-      apiClient.get('/api/logbook/entries'),
-      apiClient.get('/api/docs'),
-      apiClient.get('/api/photos'),
-      apiClient.get('/api/autotest/runs'),
-      apiClient.get('/api/prompts'),
+      get<KnowledgeEntryResponse[]>('/api/knowledge/entries'),
+      get<LogbookEntryResponse[]>('/api/logbook/entries'),
+      get<DocumentResponse[]>('/api/docs'),
+      get<PhotoResponse[]>('/api/photos'),
+      get<AutoTestRunListItemResponse[]>('/api/autotest/runs'),
+      get<SavedPromptResponse[]>('/api/prompts'),
     ])
 
-    const mapped = []
+    const mapped: ActivityRow[] = []
 
     for (const entry of knowledge || []) {
       mapped.push({
@@ -153,8 +171,8 @@ async function load() {
   }
 }
 
-function onRowClick(event) {
-  const item = event?.data
+function onRowClick(event: unknown) {
+  const item = (event as { data?: ActivityRow } | null)?.data
   if (!item?.item_id) {
     return
   }
@@ -188,4 +206,3 @@ onMounted(load)
   min-width: min(520px, 100%);
 }
 </style>
-

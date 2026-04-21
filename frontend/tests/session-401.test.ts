@@ -6,17 +6,20 @@ describe('apiClient 401 handling', () => {
     const clearToken = vi.fn()
     const notifyUnauthorized = vi.fn()
 
-    vi.doMock('../src/auth.js', () => ({
+    vi.doMock('../src/auth', () => ({
       clearToken,
       getToken: () => 't',
       notifyUnauthorized,
     }))
 
     const { apiClient } = await import('../src/api')
-    const handler = apiClient.interceptors.response.handlers.find((item) => typeof item?.rejected === 'function')?.rejected
+    const handlers = (apiClient.interceptors.response as unknown as { handlers: Array<{ rejected?: unknown }> }).handlers
+    const handler = handlers.find((item) => typeof item?.rejected === 'function')?.rejected as
+      | ((error: unknown) => Promise<unknown>)
+      | undefined
     expect(typeof handler).toBe('function')
 
-    await handler({
+    await handler!({
       response: { status: 401, data: { detail: 'unauthorized' } },
       config: { url: '/api/docs' },
       message: 'unauthorized',
@@ -31,16 +34,19 @@ describe('apiClient 401 handling', () => {
     const clearToken = vi.fn()
     const notifyUnauthorized = vi.fn()
 
-    vi.doMock('../src/auth.js', () => ({
+    vi.doMock('../src/auth', () => ({
       clearToken,
       getToken: () => null,
       notifyUnauthorized,
     }))
 
     const { apiClient } = await import('../src/api')
-    const handler = apiClient.interceptors.response.handlers.find((item) => typeof item?.rejected === 'function')?.rejected
+    const handlers = (apiClient.interceptors.response as unknown as { handlers: Array<{ rejected?: unknown }> }).handlers
+    const handler = handlers.find((item) => typeof item?.rejected === 'function')?.rejected as
+      | ((error: unknown) => Promise<unknown>)
+      | undefined
 
-    await handler({
+    await handler!({
       response: { status: 401, data: { detail: 'bad creds' } },
       config: { url: '/api/login' },
       message: 'unauthorized',

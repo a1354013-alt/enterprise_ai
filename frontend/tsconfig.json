@@ -6,8 +6,7 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
-    "allowJs": true,
-    "checkJs": false,
+    "allowJs": false,
     "noEmit": true,
     "strict": true,
     "skipLibCheck": true,
@@ -18,6 +17,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.vue", "tests/**/*.ts", "tests/**/*.js", "vite.config.js"],
+  "include": ["src/**/*.ts", "src/**/*.vue", "tests/**/*.ts", "vite.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

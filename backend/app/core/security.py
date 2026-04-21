@@ -114,3 +114,45 @@ class JWTHelper:
             return payload.get("jti")
         except jwt.InvalidTokenError:
             return None
+
+
+def extract_token_from_header(authorization: str | None) -> str:
+    """Extract Bearer token from Authorization header."""
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization header.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header must use Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token
+
+
+def create_token(*, user_id: str, role: str, display_name: str = "") -> str:
+    """Create a short-lived access token for the API."""
+    return JWTHelper.create_access_token(user_id=user_id, role=role, display_name=display_name)
+
+
+def verify_token(token: str) -> dict[str, Any]:
+    """Verify and decode an access token payload for request dependencies."""
+    payload = JWTHelper.verify_token(token, token_type="access")
+    role = payload.get("role")
+    if not isinstance(role, str) or not role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return {
+        "sub": str(payload.get("sub", "")),
+        "role": role,
+        "display_name": str(payload.get("display_name", "") or ""),
+        "exp": payload.get("exp"),
+    }

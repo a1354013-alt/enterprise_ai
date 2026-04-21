@@ -37,6 +37,26 @@ export interface QAResponse {
   sources: Source[];
 }
 
+// Generator templates
+export interface TemplateMetaItem {
+  value: string;
+  label: string;
+  fields: string[];
+}
+
+export interface TemplatesMetaResponse {
+  templates: TemplateMetaItem[];
+}
+
+export interface GenerateRequest {
+  template_type: string;
+  inputs: Record<string, string>;
+}
+
+export interface GenerateResponse {
+  content: string;
+}
+
 // Knowledge Entry
 export type KnowledgeStatus = 'draft' | 'reviewed' | 'verified' | 'archived';
 export type KnowledgeSourceType = 'manual' | 'document-derived' | 'autotest-derived';
@@ -63,7 +83,7 @@ export interface KnowledgeEntryResponse {
   solution: string;
   tags: string;
   notes: string;
-  source_type: string;
+  source_type: KnowledgeSourceType;
   source_ref: string;
   related_item_ids: string[];
   created_at: string;
@@ -105,7 +125,7 @@ export interface LogbookEntryResponse {
   root_cause: string;
   solution: string;
   tags: string;
-  source_type: string;
+  source_type: KnowledgeSourceType;
   source_ref: string;
   related_item_ids: string[];
   created_at: string;
@@ -142,6 +162,12 @@ export interface DocumentResponse {
   uploaded_by: string | null;
 }
 
+export interface DocumentUpdateRequest {
+  category?: string;
+  tags?: string;
+  status?: KnowledgeStatus;
+}
+
 export interface UploadDocumentResponse extends DocumentResponse {
   message: string;
 }
@@ -158,6 +184,12 @@ export interface PhotoResponse {
   updated_at: string;
   file_size: number;
   ocr_text: string;
+}
+
+export interface PhotoUpdateRequest {
+  tags?: string;
+  description?: string;
+  status?: KnowledgeStatus;
 }
 
 export interface UploadPhotoResponse extends PhotoResponse {

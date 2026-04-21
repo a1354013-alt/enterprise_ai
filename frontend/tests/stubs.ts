@@ -1,4 +1,4 @@
-export const PrimeStubs = {
+export const PrimeStubs: Record<string, unknown> & Record<string, any> = {
   Button: {
     props: ['label', 'icon', 'loading', 'disabled'],
     template: `<button :disabled="disabled || loading" @click="$emit('click')"><slot />{{ label }}</button>`,
@@ -33,9 +33,10 @@ export const PrimeStubs = {
     emits: ['update:modelValue'],
     template: `<input :placeholder="placeholder" :value="(modelValue || []).join(separator || ',')" @input="onInput" />`,
     methods: {
-      onInput(event) {
+      onInput(this: { separator?: string; $emit: (name: string, value: unknown) => void }, event: Event) {
         const sep = this.separator || ','
-        const text = event.target.value || ''
+        const target = event.target as HTMLInputElement | null
+        const text = target?.value || ''
         const parts = String(text)
           .split(sep)
           .map((v) => v.trim())
@@ -59,4 +60,3 @@ export const PrimeStubs = {
   TabPanel: { template: `<div><slot /></div>` },
   Password: { template: `<input type="password" />` },
 }
-

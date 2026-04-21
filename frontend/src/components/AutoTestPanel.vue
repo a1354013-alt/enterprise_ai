@@ -93,7 +93,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -101,32 +101,34 @@ import Card from 'primevue/card'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 
-import { apiClient } from '../api'
+import { get, post } from '../api'
+import type { AutoTestRunListItemResponse, AutoTestRunResponse, PromoteToKnowledgeResponse } from '../types'
 import RelatedItemsPanel from './RelatedItemsPanel.vue'
 
 const toast = useToast()
 
-const zipInput = ref(null)
-const selectedZip = ref(null)
+const zipInput = ref<HTMLInputElement | null>(null)
+const selectedZip = ref<File | null>(null)
 
 const running = ref(false)
 const loadingRuns = ref(false)
-const runs = ref([])
-const selectedRun = ref(null)
+const runs = ref<AutoTestRunListItemResponse[]>([])
+const selectedRun = ref<AutoTestRunResponse | null>(null)
 
 function openZipPicker() {
   zipInput.value?.click()
 }
 
-function onZipSelected(event) {
-  selectedZip.value = event.target.files?.[0] || null
+function onZipSelected(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  selectedZip.value = target?.files?.[0] || null
 }
 
 async function loadRuns() {
   loadingRuns.value = true
   try {
-    runs.value = await apiClient.get('/api/autotest/runs')
-  } catch (error) {
+    runs.value = await get<AutoTestRunListItemResponse[]>('/api/autotest/runs')
+  } catch {
     runs.value = []
   } finally {
     loadingRuns.value = false
@@ -143,31 +145,32 @@ async function runAutoTest() {
   try {
     const formData = new FormData()
     formData.append('file', selectedZip.value)
-    const response = await apiClient.post('/api/autotest/run', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    const response = await post<AutoTestRunResponse, FormData>('/api/autotest/run', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     toast.add({ severity: 'success', summary: 'Run completed', detail: response.status || 'Done.', life: 3000 })
     selectedZip.value = null
     if (zipInput.value) {
       zipInput.value.value = ''
     }
+    selectedRun.value = response
     await loadRuns()
-    if (response?.id) {
-      selectedRun.value = await apiClient.get(`/api/autotest/runs/${response.id}`)
-    }
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Run failed', detail: error.message, life: 5000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Run failed', detail: apiError?.message || 'Request failed.', life: 5000 })
   } finally {
     running.value = false
   }
 }
 
-async function onRunSelected(event) {
-  const item = event.data
+async function onRunSelected(event: unknown) {
+  const item = (event as { data?: AutoTestRunListItemResponse } | null)?.data
   if (!item?.id) {
     return
   }
   try {
-    selectedRun.value = await apiClient.get(`/api/autotest/runs/${item.id}`)
-  } catch (error) {
+    selectedRun.value = await get<AutoTestRunResponse>(`/api/autotest/runs/${item.id}`)
+  } catch {
     selectedRun.value = null
   }
 }
@@ -181,14 +184,15 @@ async function promoteProblem() {
     return
   }
   try {
-    const response = await apiClient.post(`/api/logbook/entries/${entryId}/promote-to-knowledge`)
+    const response = await post<PromoteToKnowledgeResponse>(`/api/logbook/entries/${entryId}/promote-to-knowledge`)
     toast.add({ severity: 'success', summary: 'Promoted', detail: `Knowledge entry: ${response.knowledge_entry_id}`, life: 4500 })
     if (selectedRun.value?.id) {
-      selectedRun.value = await apiClient.get(`/api/autotest/runs/${selectedRun.value.id}`)
+      selectedRun.value = await get<AutoTestRunResponse>(`/api/autotest/runs/${selectedRun.value.id}`)
     }
     await loadRuns()
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Promote failed', detail: error.message, life: 5000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Promote failed', detail: apiError?.message || 'Request failed.', life: 5000 })
   }
 }
 

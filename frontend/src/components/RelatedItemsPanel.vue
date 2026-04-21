@@ -60,7 +60,7 @@
   </Card>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -68,8 +68,9 @@ import Card from 'primevue/card'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 
-import { apiClient } from '../api'
+import { get } from '../api'
 import { downloadBlob, openBlobInNewTab } from '../utils/blob'
+import type { ItemLinkResolved, ItemLinksResponse } from '../types'
 
 const props = defineProps({
   itemId: { type: String, default: '' },
@@ -78,11 +79,11 @@ const props = defineProps({
 const toast = useToast()
 
 const loading = ref(false)
-const links = ref([])
+const links = ref<ItemLinkResolved[]>([])
 
 const normalizedItemId = computed(() => String(props.itemId || '').trim())
 
-function displayOtherId(link) {
+function displayOtherId(link: ItemLinkResolved | null) {
   if (!link) {
     return ''
   }
@@ -98,17 +99,18 @@ async function load() {
   }
   loading.value = true
   try {
-    const response = await apiClient.get('/api/item-links', { params: { item_id: normalizedItemId.value } })
+    const response = await get<ItemLinksResponse>('/api/item-links', { params: { item_id: normalizedItemId.value } })
     links.value = response.links || []
-  } catch (error) {
+  } catch (error: unknown) {
     links.value = []
-    toast.add({ severity: 'error', summary: 'Load failed', detail: error.message, life: 3500 })
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Load failed', detail: apiError?.message || 'Request failed.', life: 3500 })
   } finally {
     loading.value = false
   }
 }
 
-function copyOtherId(link) {
+function copyOtherId(link: ItemLinkResolved) {
   const value = displayOtherId(link)
   if (!value) {
     return
@@ -117,47 +119,49 @@ function copyOtherId(link) {
   toast.add({ severity: 'success', summary: 'Copied', detail: value, life: 1500 })
 }
 
-function isDownloadable(itemId) {
+function isDownloadable(itemId: string | undefined) {
   return typeof itemId === 'string' && (itemId.startsWith('document:') || itemId.startsWith('photo:'))
 }
 
-function isPreviewable(itemId) {
+function isPreviewable(itemId: string | undefined) {
   return typeof itemId === 'string' && (itemId.startsWith('document:') || itemId.startsWith('photo:'))
 }
 
-async function downloadRelated(itemId) {
+async function downloadRelated(itemId: string) {
   if (!isDownloadable(itemId)) {
     return
   }
   const [prefix, rawId] = itemId.split(':', 2)
   try {
     if (prefix === 'document') {
-      const blob = await apiClient.get(`/api/docs/${rawId}/download`, { responseType: 'blob' })
+      const blob = await get<Blob>(`/api/docs/${rawId}/download`, { responseType: 'blob' })
       downloadBlob(blob, `document-${rawId}`)
     } else if (prefix === 'photo') {
-      const blob = await apiClient.get(`/api/photos/${rawId}/download`, { responseType: 'blob' })
+      const blob = await get<Blob>(`/api/photos/${rawId}/download`, { responseType: 'blob' })
       downloadBlob(blob, `photo-${rawId}`)
     }
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Download failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Download failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
-async function previewRelated(itemId) {
+async function previewRelated(itemId: string) {
   if (!isPreviewable(itemId)) {
     return
   }
   const [prefix, rawId] = itemId.split(':', 2)
   try {
     if (prefix === 'document') {
-      const blob = await apiClient.get(`/api/docs/${rawId}/download`, { params: { inline: 1 }, responseType: 'blob' })
+      const blob = await get<Blob>(`/api/docs/${rawId}/download`, { params: { inline: 1 }, responseType: 'blob' })
       openBlobInNewTab(blob)
     } else if (prefix === 'photo') {
-      const blob = await apiClient.get(`/api/photos/${rawId}/download`, { params: { inline: 1 }, responseType: 'blob' })
+      const blob = await get<Blob>(`/api/photos/${rawId}/download`, { params: { inline: 1 }, responseType: 'blob' })
       openBlobInNewTab(blob)
     }
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Preview failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Preview failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
@@ -209,4 +213,3 @@ watch(
   gap: 6px;
 }
 </style>
-

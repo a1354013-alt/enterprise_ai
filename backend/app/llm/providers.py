@@ -6,6 +6,8 @@ from typing import Any
 
 import httpx
 
+from app.core.config import get_settings
+
 
 class LLMProviderError(RuntimeError):
     pass
@@ -39,8 +41,9 @@ class OllamaProvider(LLMProvider):
         model: str | None = None,
         timeout_s: float = 30.0,
     ) -> None:
-        self.base_url = (base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
-        self.model = model or os.getenv("OLLAMA_MODEL", "llama3.1")
+        settings = get_settings()
+        self.base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
+        self.model = model or settings.OLLAMA_MODEL
         self.timeout_s = float(timeout_s)
 
     async def healthcheck(self) -> bool:

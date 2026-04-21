@@ -36,31 +36,31 @@
 
       <main class="main-grid">
         <TabView>
-          <TabPanel header="Activity">
+          <TabPanel header="Activity" value="activity">
             <ActivityDashboard />
           </TabPanel>
-          <TabPanel header="Search">
+          <TabPanel header="Search" value="search">
             <GlobalSearchPanel />
           </TabPanel>
-          <TabPanel header="Knowledge Base">
+          <TabPanel header="Knowledge Base" value="knowledge">
             <KnowledgeBase />
           </TabPanel>
-          <TabPanel header="Problem Logbook">
+          <TabPanel header="Problem Logbook" value="logbook">
             <LogbookPanel />
           </TabPanel>
-          <TabPanel header="Documents & Photos">
+          <TabPanel header="Documents & Photos" value="docsPhotos">
             <DocsPhotosPanel />
           </TabPanel>
-          <TabPanel header="Auto Test">
+          <TabPanel header="Auto Test" value="autotest">
             <AutoTestPanel />
           </TabPanel>
-          <TabPanel header="Prompts">
+          <TabPanel header="Prompts" value="prompts">
             <PromptsPanel />
           </TabPanel>
-          <TabPanel header="Generator">
+          <TabPanel header="Generator" value="generator">
             <TemplateGeneratorPanel />
           </TabPanel>
-          <TabPanel header="Settings">
+          <TabPanel header="Settings" value="settings">
             <SettingsPanel :current-user="currentUser" />
           </TabPanel>
         </TabView>
@@ -69,7 +69,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -91,14 +91,15 @@ import TemplateGeneratorPanel from './components/TemplateGeneratorPanel.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 
 import { createInitialUser } from './app-state'
-import { apiClient } from './api'
+import { get, post } from './api'
 import { clearToken, onUnauthorized, restoreToken, setToken } from './auth'
+import type { LoginRequest, LoginResponse, MeResponse } from './types'
 
 const toast = useToast()
 
 const loginLoading = ref(false)
 const currentUser = ref(createInitialUser())
-const loginForm = ref({ user_id: '', password: '' })
+const loginForm = ref<LoginRequest>({ user_id: '', password: '' })
 
 const isLoggedIn = computed(() => Boolean(currentUser.value.user_id))
 
@@ -110,13 +111,14 @@ async function login() {
 
   loginLoading.value = true
   try {
-    const response = await apiClient.post('/api/login', loginForm.value, { skipAuth: true })
+    const response = await post<LoginResponse, LoginRequest>('/api/login', loginForm.value, { skipAuth: true })
     setToken(response.access_token)
     await bootstrapSession()
     toast.add({ severity: 'success', summary: 'Signed in', detail: 'Workspace ready.', life: 3000 })
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Login failed', detail: error.message, life: 4000 })
-    if (error?.status === 401) {
+  } catch (error: unknown) {
+    const apiError = error as { message?: string; status?: number }
+    toast.add({ severity: 'error', summary: 'Login failed', detail: apiError?.message || 'Login failed.', life: 4000 })
+    if (apiError?.status === 401) {
       clearToken()
     }
   } finally {
@@ -138,7 +140,7 @@ async function bootstrapSession() {
   if (!token) {
     return
   }
-  const me = await apiClient.get('/api/me')
+  const me = await get<MeResponse>('/api/me')
   currentUser.value = me
 }
 
@@ -152,8 +154,9 @@ const removeUnauthorizedListener = onUnauthorized((event) => {
 onMounted(async () => {
   try {
     await bootstrapSession()
-  } catch (error) {
-    if (error?.status === 401) {
+  } catch (error: unknown) {
+    const apiError = error as { status?: number }
+    if (apiError?.status === 401) {
       clearToken()
     }
   }

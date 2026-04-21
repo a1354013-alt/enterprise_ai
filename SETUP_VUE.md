@@ -29,6 +29,6 @@ npm run build
 ## Notes
 
 - All frontend API calls go through `src/api.ts`
-- Token storage/restore/logout is centralized in `src/auth.js`
-- App initialization state is centralized in `src/app-state.js`
+- Token storage/restore/logout is centralized in `src/auth.ts`
+- App initialization state is centralized in `src/app-state.ts`
 - Saved prompts and AutoTest workflows use the same API client and auth flow as the main app

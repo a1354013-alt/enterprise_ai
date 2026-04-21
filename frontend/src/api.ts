@@ -3,12 +3,12 @@
  * Provides interceptors for 401, 500, 503 errors with user-friendly messages.
  */
 
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import axios, { AxiosError, type AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
 import type { AxiosInstance } from 'axios'
-import { clearToken, getToken, notifyUnauthorized } from './auth.js'
+import { clearToken, getToken, notifyUnauthorized } from './auth'
 import type { ApiError } from './types'
 
-const API_BASE_URL = import.meta?.env?.VITE_API_BASE || process.env.VITE_API_BASE || 'http://localhost:8000'
+const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -30,7 +30,7 @@ apiClient.interceptors.request.use(
 
 // Response interceptor: unified error handling
 apiClient.interceptors.response.use(
-  (response) => response.data,
+  (response) => response,
   (error: AxiosError<ApiError>) => {
     const status = error.response?.status ?? 0
     const detail = error.response?.data?.detail || error.message || 'Request failed.'
@@ -84,22 +84,27 @@ apiClient.interceptors.response.use(
 )
 
 // Export typed helper functions
-export async function get<T>(url: string): Promise<T> {
-  return apiClient.get(url) as unknown as Promise<T>
+export async function get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  const response = await apiClient.get<T>(url, config)
+  return response.data
 }
 
-export async function post<T, D = unknown>(url: string, data?: D): Promise<T> {
-  return apiClient.post(url, data) as unknown as Promise<T>
+export async function post<T, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig): Promise<T> {
+  const response = await apiClient.post<T>(url, data, config)
+  return response.data
 }
 
-export async function patch<T, D = unknown>(url: string, data?: D): Promise<T> {
-  return apiClient.patch(url, data) as unknown as Promise<T>
+export async function patch<T, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig): Promise<T> {
+  const response = await apiClient.patch<T>(url, data, config)
+  return response.data
 }
 
-export async function put<T, D = unknown>(url: string, data?: D): Promise<T> {
-  return apiClient.put(url, data) as unknown as Promise<T>
+export async function put<T, D = unknown>(url: string, data?: D, config?: AxiosRequestConfig): Promise<T> {
+  const response = await apiClient.put<T>(url, data, config)
+  return response.data
 }
 
-export async function del<T>(url: string): Promise<T> {
-  return apiClient.delete(url) as unknown as Promise<T>
+export async function del<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  const response = await apiClient.delete<T>(url, config)
+  return response.data
 }

@@ -39,7 +39,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -47,17 +47,18 @@ import Card from 'primevue/card'
 import Dropdown from 'primevue/dropdown'
 import Textarea from 'primevue/textarea'
 
-import { apiClient } from '../api'
+import { get, post } from '../api'
+import type { GenerateRequest, GenerateResponse, TemplateMetaItem, TemplatesMetaResponse } from '../types'
 
 const toast = useToast()
 
 const loadingTemplates = ref(false)
 const generating = ref(false)
-const templates = ref([])
+const templates = ref<TemplateMetaItem[]>([])
 const selectedTemplate = ref('')
-const templateFieldsByType = ref({})
+const templateFieldsByType = ref<Record<string, string[]>>({})
 
-const inputs = ref({})
+const inputs = ref<Record<string, string>>({})
 const output = ref('')
 
 const fields = computed(() => {
@@ -68,17 +69,18 @@ const fields = computed(() => {
 async function loadTemplates() {
   loadingTemplates.value = true
   try {
-    const response = await apiClient.get('/api/meta/templates')
+    const response = await get<TemplatesMetaResponse>('/api/meta/templates')
     templates.value = response.templates || []
-    const next = {}
+    const next: Record<string, string[]> = {}
     for (const item of templates.value) {
       next[item.value] = item.fields || []
     }
     templateFieldsByType.value = next
-  } catch (error) {
+  } catch (error: unknown) {
     templates.value = []
     templateFieldsByType.value = {}
-    toast.add({ severity: 'error', summary: 'Load failed', detail: error.message, life: 4000 })
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Load failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     loadingTemplates.value = false
   }
@@ -90,18 +92,19 @@ async function generate() {
   }
   generating.value = true
   try {
-    const payload = {
+    const payload: GenerateRequest = {
       template_type: selectedTemplate.value,
       inputs: inputs.value || {},
     }
-    const response = await apiClient.post('/api/generate', payload)
+    const response = await post<GenerateResponse, GenerateRequest>('/api/generate', payload)
     output.value = response.content || ''
     if (!output.value) {
       toast.add({ severity: 'warn', summary: 'No output', detail: 'Generator returned empty content.', life: 3000 })
     }
-  } catch (error) {
+  } catch (error: unknown) {
     output.value = ''
-    toast.add({ severity: 'error', summary: 'Generate failed', detail: error.message, life: 4500 })
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Generate failed', detail: apiError?.message || 'Request failed.', life: 4500 })
   } finally {
     generating.value = false
   }
@@ -157,4 +160,3 @@ onMounted(loadTemplates)
   font-size: 12px;
 }
 </style>
-

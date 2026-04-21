@@ -59,13 +59,14 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 
-import { apiClient } from '../api'
+import { get } from '../api'
+import type { SettingsLLMResponse, SettingsOCRResponse, TemplateMetaItem, TemplatesMetaResponse } from '../types'
 
 defineProps({
   currentUser: {
@@ -78,23 +79,24 @@ const loading = ref(false)
 const loadingTemplates = ref(false)
 const loadingOcr = ref(false)
 const toast = useToast()
-const status = ref({
+const status = ref<SettingsLLMResponse>({
   provider: '',
   model: '',
   base_url: '',
   healthy: false,
   fallback_mode: true,
 })
-const templates = ref([])
-const ocr = ref({ enabled: false, available: false })
+const templates = ref<TemplateMetaItem[]>([])
+const ocr = ref<SettingsOCRResponse>({ enabled: false, available: false })
 
 async function loadStatus() {
   loading.value = true
   try {
-    status.value = await apiClient.get('/api/settings/llm')
-  } catch (error) {
+    status.value = await get<SettingsLLMResponse>('/api/settings/llm')
+  } catch (error: unknown) {
     status.value = { provider: 'unknown', model: '', base_url: '', healthy: false, fallback_mode: true }
-    toast.add({ severity: 'error', summary: 'LLM status failed', detail: error.message, life: 3500 })
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'LLM status failed', detail: apiError?.message || 'Request failed.', life: 3500 })
   } finally {
     loading.value = false
   }
@@ -105,11 +107,12 @@ onMounted(loadStatus)
 async function loadTemplates() {
   loadingTemplates.value = true
   try {
-    const payload = await apiClient.get('/api/meta/templates')
+    const payload = await get<TemplatesMetaResponse>('/api/meta/templates')
     templates.value = payload?.templates || []
-  } catch (error) {
+  } catch (error: unknown) {
     templates.value = []
-    toast.add({ severity: 'error', summary: 'Template load failed', detail: error.message, life: 3500 })
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Template load failed', detail: apiError?.message || 'Request failed.', life: 3500 })
   } finally {
     loadingTemplates.value = false
   }
@@ -120,10 +123,11 @@ onMounted(loadTemplates)
 async function loadOcrStatus() {
   loadingOcr.value = true
   try {
-    ocr.value = await apiClient.get('/api/settings/ocr')
-  } catch (error) {
+    ocr.value = await get<SettingsOCRResponse>('/api/settings/ocr')
+  } catch (error: unknown) {
     ocr.value = { enabled: false, available: false }
-    toast.add({ severity: 'error', summary: 'OCR status failed', detail: error.message, life: 3500 })
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'OCR status failed', detail: apiError?.message || 'Request failed.', life: 3500 })
   } finally {
     loadingOcr.value = false
   }

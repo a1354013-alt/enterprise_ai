@@ -1,11 +1,11 @@
-export function createObjectUrl(blob) {
+export function createObjectUrl(blob: Blob): string {
   if (typeof window === 'undefined' || !window.URL?.createObjectURL) {
     return ''
   }
   return window.URL.createObjectURL(blob)
 }
 
-export function revokeObjectUrl(url) {
+export function revokeObjectUrl(url: string): void {
   try {
     if (typeof window !== 'undefined' && window.URL?.revokeObjectURL) {
       window.URL.revokeObjectURL(url)
@@ -15,7 +15,7 @@ export function revokeObjectUrl(url) {
   }
 }
 
-export function downloadBlob(blob, filename) {
+export function downloadBlob(blob: Blob, filename: string): void {
   const url = createObjectUrl(blob)
   if (!url) {
     return
@@ -29,7 +29,7 @@ export function downloadBlob(blob, filename) {
   setTimeout(() => revokeObjectUrl(url), 5000)
 }
 
-export function openBlobInNewTab(blob) {
+export function openBlobInNewTab(blob: Blob): void {
   const url = createObjectUrl(blob)
   if (!url) {
     return
@@ -37,4 +37,3 @@ export function openBlobInNewTab(blob) {
   window.open(url, '_blank', 'noopener,noreferrer')
   setTimeout(() => revokeObjectUrl(url), 15000)
 }
-

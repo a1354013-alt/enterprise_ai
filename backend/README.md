@@ -52,5 +52,23 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```bash
 cd backend
 python -m pytest
-python tests/run_smoke.py
 ```
+
+Integration smoke (starts a real backend process; used by CI):
+
+```bash
+cd ..
+python scripts/smoke_check.py --password "<DEFAULT_OWNER_PASSWORD>"
+```
+
+## Key env vars
+
+Minimum required:
+- `JWT_SECRET` (min 32 chars)
+- `DEFAULT_OWNER_PASSWORD` (seeds initial `owner` when DB is empty)
+
+Optional (common):
+- `ALLOWED_ORIGINS` (comma-separated)
+- `OCR_ENABLED` (`true/false`)
+- `LLM_PROVIDER` (`ollama`, `mock`, `fallback`)
+- `OLLAMA_BASE_URL`, `OLLAMA_MODEL`

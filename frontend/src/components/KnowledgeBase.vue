@@ -110,7 +110,7 @@
   </Dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -123,7 +123,21 @@ import Dropdown from 'primevue/dropdown'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 
-import { apiClient } from '../api'
+import { get, patch, post } from '../api'
+import type {
+  AutoTestRunListItemResponse,
+  DocumentResponse,
+  KnowledgeEntryCreateRequest,
+  KnowledgeEntryResponse,
+  KnowledgeEntryUpdateRequest,
+  LogbookEntryResponse,
+  MessageResponse,
+  PhotoResponse,
+  QARequest,
+  QAResponse,
+  SavedPromptResponse,
+  Source,
+} from '../types'
 import RelatedItemsPanel from './RelatedItemsPanel.vue'
 
 const toast = useToast()
@@ -131,28 +145,29 @@ const toast = useToast()
 const question = ref('')
 const asking = ref(false)
 const answer = ref('')
-const sources = ref([])
+const sources = ref<Source[]>([])
 
 const saving = ref(false)
-const entry = ref(createBlankEntry())
+const entry = ref<KnowledgeEntryCreateRequest>(createBlankEntry())
 
 const loadingRecent = ref(false)
-const recent = ref([])
+const recent = ref<KnowledgeEntryResponse[]>([])
 const recentFilterText = ref('')
 
 const selectedRelatedItemId = ref('')
 
 const editorVisible = ref(false)
 const editorSaving = ref(false)
-const editor = ref(createBlankEntry())
+type KnowledgeEditorModel = KnowledgeEntryCreateRequest & { id: string }
+const editor = ref<KnowledgeEditorModel>(createBlankEditor())
 
 const pickerSelected = ref('')
-const documents = ref([])
-const photos = ref([])
-const prompts = ref([])
-const autotestRuns = ref([])
-const knowledgeEntries = ref([])
-const logbookEntries = ref([])
+const documents = ref<DocumentResponse[]>([])
+const photos = ref<PhotoResponse[]>([])
+const prompts = ref<SavedPromptResponse[]>([])
+const autotestRuns = ref<AutoTestRunListItemResponse[]>([])
+const knowledgeEntries = ref<KnowledgeEntryResponse[]>([])
+const logbookEntries = ref<LogbookEntryResponse[]>([])
 
 const sourceTypes = [
   { label: 'Manual', value: 'manual' },
@@ -206,7 +221,7 @@ const filteredRecent = computed(() => {
   })
 })
 
-function createBlankEntry() {
+function createBlankEntry(): KnowledgeEntryCreateRequest {
   return {
     title: '',
     problem: '',
@@ -219,6 +234,10 @@ function createBlankEntry() {
     source_ref: '',
     related_item_ids: [],
   }
+}
+
+function createBlankEditor(): KnowledgeEditorModel {
+  return { ...createBlankEntry(), id: '' }
 }
 
 function clearResult() {
@@ -238,11 +257,12 @@ async function submitQA() {
 
   asking.value = true
   try {
-    const response = await apiClient.post('/api/qa', { question: question.value.trim() })
+    const response = await post<QAResponse, QARequest>('/api/qa', { question: question.value.trim() })
     answer.value = response.answer
     sources.value = response.sources || []
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'QA failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'QA failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     asking.value = false
   }
@@ -275,12 +295,13 @@ async function saveEntry() {
 
   saving.value = true
   try {
-    await apiClient.post('/api/knowledge/entries', payload)
+    await post<MessageResponse, KnowledgeEntryCreateRequest>('/api/knowledge/entries', payload)
     toast.add({ severity: 'success', summary: 'Saved', detail: 'Knowledge note indexed.', life: 3000 })
     resetEntry()
     await loadRecent()
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Save failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     saving.value = false
   }
@@ -289,10 +310,11 @@ async function saveEntry() {
 async function loadRecent() {
   loadingRecent.value = true
   try {
-    recent.value = await apiClient.get('/api/knowledge/entries')
-  } catch (error) {
+    recent.value = await get<KnowledgeEntryResponse[]>('/api/knowledge/entries')
+  } catch (error: unknown) {
     recent.value = []
-    toast.add({ severity: 'error', summary: 'Load failed', detail: error.message, life: 3500 })
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Load failed', detail: apiError?.message || 'Request failed.', life: 3500 })
   } finally {
     loadingRecent.value = false
   }
@@ -301,12 +323,12 @@ async function loadRecent() {
 async function loadPickers() {
   try {
     const [docs, imgs, runs, promptList, kbEntries, lbEntries] = await Promise.all([
-      apiClient.get('/api/docs'),
-      apiClient.get('/api/photos'),
-      apiClient.get('/api/autotest/runs'),
-      apiClient.get('/api/prompts'),
-      apiClient.get('/api/knowledge/entries'),
-      apiClient.get('/api/logbook/entries'),
+      get<DocumentResponse[]>('/api/docs'),
+      get<PhotoResponse[]>('/api/photos'),
+      get<AutoTestRunListItemResponse[]>('/api/autotest/runs'),
+      get<SavedPromptResponse[]>('/api/prompts'),
+      get<KnowledgeEntryResponse[]>('/api/knowledge/entries'),
+      get<LogbookEntryResponse[]>('/api/logbook/entries'),
     ])
     documents.value = docs || []
     photos.value = imgs || []
@@ -319,14 +341,14 @@ async function loadPickers() {
   }
 }
 
-function selectForRelated(item) {
+function selectForRelated(item: KnowledgeEntryResponse) {
   if (!item?.id) {
     return
   }
   selectedRelatedItemId.value = `knowledge:${item.id}`
 }
 
-function openEditor(item) {
+function openEditor(item: KnowledgeEntryResponse) {
   if (!item?.id) {
     return
   }
@@ -364,7 +386,7 @@ async function saveEditor() {
   if (!editor.value?.id) {
     return
   }
-  const payload = {
+  const payload: KnowledgeEntryUpdateRequest = {
     title: String(editor.value.title || '').trim(),
     problem: String(editor.value.problem || '').trim(),
     root_cause: String(editor.value.root_cause || '').trim(),
@@ -378,19 +400,20 @@ async function saveEditor() {
   }
   editorSaving.value = true
   try {
-    await apiClient.patch(`/api/knowledge/entries/${editor.value.id}`, payload)
+    await patch<MessageResponse, KnowledgeEntryUpdateRequest>(`/api/knowledge/entries/${editor.value.id}`, payload)
     toast.add({ severity: 'success', summary: 'Saved', detail: 'Knowledge entry updated.', life: 2500 })
     editorVisible.value = false
     await loadRecent()
     selectedRelatedItemId.value = `knowledge:${editor.value.id}`
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Save failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     editorSaving.value = false
   }
 }
 
-async function archiveEntry(item) {
+async function archiveEntry(item: KnowledgeEntryResponse) {
   if (!item?.id) {
     return
   }
@@ -398,14 +421,15 @@ async function archiveEntry(item) {
     return
   }
   try {
-    await apiClient.patch(`/api/knowledge/entries/${item.id}`, { status: 'archived' })
+    await patch<MessageResponse, KnowledgeEntryUpdateRequest>(`/api/knowledge/entries/${item.id}`, { status: 'archived' })
     toast.add({ severity: 'success', summary: 'Archived', detail: 'Entry archived.', life: 2200 })
     await loadRecent()
     if (selectedRelatedItemId.value === `knowledge:${item.id}`) {
       selectedRelatedItemId.value = ''
     }
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Archive failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Archive failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 

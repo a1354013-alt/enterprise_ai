@@ -30,7 +30,7 @@ def load_app(monkeypatch, tmp_path):
     def fake_process_file(doc_id, file_path, filename, owner_user_id, status='reviewed', is_active=1):
         return doc_id
 
-    async def fake_perform_qa(question, user_id):
+    async def fake_perform_qa(question, user_id, _db=None):
         return (f'answer for {user_id}', [])
 
     main.process_file = fake_process_file

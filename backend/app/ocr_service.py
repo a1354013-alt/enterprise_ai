@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from app.core.config import get_settings
+
 logger = logging.getLogger("knowledge_workspace")
 
 try:
@@ -20,12 +22,10 @@ except ImportError:
     PYTESSERACT_AVAILABLE = False
     logger.warning("pytesseract or PIL not installed. OCR functionality will be disabled.")
 
-_OCR_ENABLED = os.getenv("OCR_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
-
-
 def get_ocr_status() -> dict[str, Any]:
+    settings = get_settings()
     return {
-        "enabled": bool(_OCR_ENABLED),
+        "enabled": bool(settings.OCR_ENABLED),
         "available": bool(PYTESSERACT_AVAILABLE),
     }
 
@@ -40,7 +40,8 @@ def extract_text_from_image(image_path: str | Path) -> str:
     Returns:
         Extracted text content, or empty string if OCR fails
     """
-    if not _OCR_ENABLED:
+    settings = get_settings()
+    if not settings.OCR_ENABLED:
         return ""
     if not PYTESSERACT_AVAILABLE:
         logger.info("OCR is not available. Install pytesseract and PIL for OCR support.")

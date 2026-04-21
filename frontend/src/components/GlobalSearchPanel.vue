@@ -56,7 +56,7 @@
   </Card>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -67,17 +67,18 @@ import Dropdown from 'primevue/dropdown'
 import InputText from 'primevue/inputtext'
 import MultiSelect from 'primevue/multiselect'
 
-import { apiClient } from '../api'
+import { get } from '../api'
 import RelatedItemsPanel from './RelatedItemsPanel.vue'
+import type { ItemSummary, ResolveItemsResponse } from '../types'
 
 const toast = useToast()
 
 const loading = ref(false)
-const results = ref([])
+const results = ref<ItemSummary[]>([])
 const selectedItemId = ref('')
 
 const query = ref('')
-const selectedTypes = ref([])
+const selectedTypes = ref<string[]>([])
 const statusFilter = ref('')
 const tag = ref('')
 const dateFrom = ref('')
@@ -124,14 +125,14 @@ function reset() {
   selectedItemId.value = ''
 }
 
-function selectRelated(item) {
+function selectRelated(item: ItemSummary) {
   if (!item?.item_id) {
     return
   }
   selectedItemId.value = item.item_id
 }
 
-function copyId(item) {
+function copyId(item: ItemSummary) {
   const value = String(item?.item_id || '').trim()
   if (!value) {
     return
@@ -153,11 +154,12 @@ async function runSearch() {
       date_to: String(dateTo.value || '').trim(),
       limit: Number(limit.value || 200),
     }
-    const response = await apiClient.get('/api/search', { params })
+    const response = await get<ResolveItemsResponse>('/api/search', { params })
     results.value = response.items || []
-  } catch (error) {
+  } catch (error: unknown) {
     results.value = []
-    toast.add({ severity: 'error', summary: 'Search failed', detail: error.message, life: 4000 })
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Search failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     loading.value = false
   }
@@ -208,4 +210,3 @@ async function runSearch() {
   gap: 6px;
 }
 </style>
-

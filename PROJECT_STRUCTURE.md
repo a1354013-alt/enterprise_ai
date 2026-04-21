@@ -20,16 +20,16 @@ Knowledge_Workspace/
     tests/
   frontend/
     index.html
+    vite.config.ts
     src/
       App.vue
       api.ts
-      auth.js
-      app-state.js
+      auth.ts
+      app-state.ts
       components/
-      main.js
+      main.ts
     tests/
     package.json
-    vite.config.js
   scripts/
     smoke_check.py
     package_release.py

@@ -54,7 +54,8 @@ class Settings(BaseModel):
     
     # LLM Settings
     LLM_PROVIDER: str = "ollama"
-    LLM_MODEL: str = "llama3.1"
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.1"
     
     @classmethod
     def load_from_env(cls) -> "Settings":
@@ -107,8 +108,9 @@ class Settings(BaseModel):
             AUTOTEST_RLIMIT_AS_MB=int(os.getenv("AUTOTEST_RLIMIT_AS_MB", "2048")),
             AUTOTEST_RLIMIT_FSIZE_MB=int(os.getenv("AUTOTEST_RLIMIT_FSIZE_MB", "200")),
             OCR_ENABLED=os.getenv("OCR_ENABLED", "true").lower() == "true",
-            LLM_PROVIDER=os.getenv("LLM_PROVIDER", "ollama"),
-            LLM_MODEL=os.getenv("LLM_MODEL", "llama3.1"),
+            LLM_PROVIDER=(os.getenv("LLM_PROVIDER", "ollama") or "ollama").strip().lower(),
+            OLLAMA_BASE_URL=(os.getenv("OLLAMA_BASE_URL", "http://localhost:11434") or "http://localhost:11434").strip(),
+            OLLAMA_MODEL=(os.getenv("OLLAMA_MODEL", "llama3.1") or "llama3.1").strip(),
         )
         
         # Validate critical settings

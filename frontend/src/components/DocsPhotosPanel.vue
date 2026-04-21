@@ -111,7 +111,7 @@
   </Dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -123,26 +123,33 @@ import Dropdown from 'primevue/dropdown'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 
-import { apiClient } from '../api'
+import { del, get, patch, post } from '../api'
 import { downloadBlob, openBlobInNewTab } from '../utils/blob'
 import RelatedItemsPanel from './RelatedItemsPanel.vue'
+import type {
+  DocumentUpdateRequest,
+  DocumentResponse,
+  MessageResponse,
+  PhotoResponse,
+  PhotoUpdateRequest,
+} from '../types'
 
 const toast = useToast()
 
-const docInput = ref(null)
-const photoInput = ref(null)
+const docInput = ref<HTMLInputElement | null>(null)
+const photoInput = ref<HTMLInputElement | null>(null)
 
-const documents = ref([])
-const photos = ref([])
+const documents = ref<DocumentResponse[]>([])
+const photos = ref<PhotoResponse[]>([])
 const docFilterText = ref('')
 
-const selectedDoc = ref(null)
+const selectedDoc = ref<File | null>(null)
 const uploadingDoc = ref(false)
 const loadingDocs = ref(false)
 const docCategory = ref('')
 const docTags = ref('')
 
-const selectedPhoto = ref(null)
+const selectedPhoto = ref<File | null>(null)
 const uploadingPhoto = ref(false)
 const loadingPhotos = ref(false)
 const photoTags = ref('')
@@ -152,11 +159,11 @@ const selectedRelatedItemId = ref('')
 
 const docEditorVisible = ref(false)
 const docEditorSaving = ref(false)
-const docEditor = ref({ id: '', category: '', tags: '', status: 'reviewed' })
+const docEditor = ref<Pick<DocumentResponse, 'id' | 'category' | 'tags' | 'status'>>({ id: '', category: '', tags: '', status: 'reviewed' })
 
 const photoEditorVisible = ref(false)
 const photoEditorSaving = ref(false)
-const photoEditor = ref({ id: '', tags: '', description: '', status: 'reviewed' })
+const photoEditor = ref<Pick<PhotoResponse, 'id' | 'tags' | 'description' | 'status'>>({ id: '', tags: '', description: '', status: 'reviewed' })
 
 const statusOptions = [
   { label: 'Draft', value: 'draft' },
@@ -184,19 +191,21 @@ function openPhotoPicker() {
   photoInput.value?.click()
 }
 
-function onDocSelected(event) {
-  selectedDoc.value = event.target.files?.[0] || null
+function onDocSelected(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  selectedDoc.value = target?.files?.[0] || null
 }
 
-function onPhotoSelected(event) {
-  selectedPhoto.value = event.target.files?.[0] || null
+function onPhotoSelected(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  selectedPhoto.value = target?.files?.[0] || null
 }
 
 async function loadDocuments() {
   loadingDocs.value = true
   try {
-    documents.value = await apiClient.get('/api/docs')
-  } catch (error) {
+    documents.value = await get<DocumentResponse[]>('/api/docs')
+  } catch {
     documents.value = []
   } finally {
     loadingDocs.value = false
@@ -215,7 +224,7 @@ async function uploadDoc() {
     formData.append('file', selectedDoc.value)
     formData.append('category', docCategory.value || '')
     formData.append('tags', docTags.value || '')
-    await apiClient.post('/api/docs/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    await post<MessageResponse, FormData>('/api/docs/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
     toast.add({ severity: 'success', summary: 'Uploaded', detail: 'Document uploaded.', life: 3000 })
     selectedDoc.value = null
     if (docInput.value) {
@@ -224,8 +233,9 @@ async function uploadDoc() {
     docCategory.value = ''
     docTags.value = ''
     await loadDocuments()
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Upload failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Upload failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     uploadingDoc.value = false
   }
@@ -234,8 +244,8 @@ async function uploadDoc() {
 async function loadPhotos() {
   loadingPhotos.value = true
   try {
-    photos.value = await apiClient.get('/api/photos')
-  } catch (error) {
+    photos.value = await get<PhotoResponse[]>('/api/photos')
+  } catch {
     photos.value = []
   } finally {
     loadingPhotos.value = false
@@ -254,7 +264,7 @@ async function uploadPhoto() {
     formData.append('file', selectedPhoto.value)
     formData.append('tags', photoTags.value || '')
     formData.append('description', photoDescription.value || '')
-    await apiClient.post('/api/photos/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    await post<MessageResponse, FormData>('/api/photos/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
     toast.add({ severity: 'success', summary: 'Uploaded', detail: 'Image saved.', life: 3000 })
     selectedPhoto.value = null
     if (photoInput.value) {
@@ -263,8 +273,9 @@ async function uploadPhoto() {
     photoTags.value = ''
     photoDescription.value = ''
     await loadPhotos()
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Upload failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Upload failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     uploadingPhoto.value = false
   }
@@ -274,45 +285,47 @@ onMounted(async () => {
   await Promise.all([loadDocuments(), loadPhotos()])
 })
 
-function showDocReferences(doc) {
-  if (!doc?.id) {
-    return
-  }
-  selectedRelatedItemId.value = `document:${doc.id}`
-}
-
-function showPhotoReferences(photo) {
+function showPhotoReferences(photo: PhotoResponse) {
   if (!photo?.id) {
     return
   }
   selectedRelatedItemId.value = `photo:${photo.id}`
 }
 
-async function previewDocument(doc) {
+function showDocReferences(doc: DocumentResponse) {
+  if (!doc?.id) {
+    return
+  }
+  selectedRelatedItemId.value = `document:${doc.id}`
+}
+
+async function previewDocument(doc: DocumentResponse) {
   if (!doc?.id) {
     return
   }
   try {
-    const blob = await apiClient.get(`/api/docs/${doc.id}/download`, { params: { inline: 1 }, responseType: 'blob' })
+    const blob = await get<Blob>(`/api/docs/${doc.id}/download`, { params: { inline: 1 }, responseType: 'blob' })
     openBlobInNewTab(blob)
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Preview failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Preview failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
-async function downloadDocument(doc) {
+async function downloadDocument(doc: DocumentResponse) {
   if (!doc?.id) {
     return
   }
   try {
-    const blob = await apiClient.get(`/api/docs/${doc.id}/download`, { responseType: 'blob' })
+    const blob = await get<Blob>(`/api/docs/${doc.id}/download`, { responseType: 'blob' })
     downloadBlob(blob, doc.filename || `document-${doc.id}`)
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Download failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Download failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
-function openDocEditor(doc) {
+function openDocEditor(doc: DocumentResponse) {
   if (!doc?.id) {
     return
   }
@@ -331,22 +344,24 @@ async function saveDocEditor() {
   }
   docEditorSaving.value = true
   try {
-    await apiClient.patch(`/api/docs/${docEditor.value.id}`, {
+    const payload: DocumentUpdateRequest = {
       category: String(docEditor.value.category || ''),
       tags: String(docEditor.value.tags || ''),
       status: docEditor.value.status || 'reviewed',
-    })
+    }
+    await patch<MessageResponse, DocumentUpdateRequest>(`/api/docs/${docEditor.value.id}`, payload)
     toast.add({ severity: 'success', summary: 'Saved', detail: 'Document updated.', life: 2500 })
     docEditorVisible.value = false
     await loadDocuments()
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Save failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     docEditorSaving.value = false
   }
 }
 
-async function archiveDocument(doc) {
+async function archiveDocument(doc: DocumentResponse) {
   if (!doc?.id) {
     return
   }
@@ -354,15 +369,16 @@ async function archiveDocument(doc) {
     return
   }
   try {
-    await apiClient.patch(`/api/docs/${doc.id}`, { status: 'archived' })
+    await patch<MessageResponse, DocumentUpdateRequest>(`/api/docs/${doc.id}`, { status: 'archived' })
     toast.add({ severity: 'success', summary: 'Archived', detail: 'Document archived.', life: 2500 })
     await loadDocuments()
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Archive failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Archive failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
-async function deleteDocument(doc) {
+async function deleteDocument(doc: DocumentResponse) {
   if (!doc?.id) {
     return
   }
@@ -370,42 +386,45 @@ async function deleteDocument(doc) {
     return
   }
   try {
-    await apiClient.delete(`/api/docs/${doc.id}`)
+    await del<MessageResponse>(`/api/docs/${doc.id}`)
     toast.add({ severity: 'success', summary: 'Deleted', detail: 'Document deleted.', life: 2500 })
     await loadDocuments()
     if (selectedRelatedItemId.value === `document:${doc.id}`) {
       selectedRelatedItemId.value = ''
     }
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Delete failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Delete failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
-async function previewPhoto(photo) {
+async function previewPhoto(photo: PhotoResponse) {
   if (!photo?.id) {
     return
   }
   try {
-    const blob = await apiClient.get(`/api/photos/${photo.id}/download`, { params: { inline: 1 }, responseType: 'blob' })
+    const blob = await get<Blob>(`/api/photos/${photo.id}/download`, { params: { inline: 1 }, responseType: 'blob' })
     openBlobInNewTab(blob)
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Preview failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Preview failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
-async function downloadPhoto(photo) {
+async function downloadPhoto(photo: PhotoResponse) {
   if (!photo?.id) {
     return
   }
   try {
-    const blob = await apiClient.get(`/api/photos/${photo.id}/download`, { responseType: 'blob' })
+    const blob = await get<Blob>(`/api/photos/${photo.id}/download`, { responseType: 'blob' })
     downloadBlob(blob, photo.filename || `photo-${photo.id}`)
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Download failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Download failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
-function openPhotoEditor(photo) {
+function openPhotoEditor(photo: PhotoResponse) {
   if (!photo?.id) {
     return
   }
@@ -424,22 +443,24 @@ async function savePhotoEditor() {
   }
   photoEditorSaving.value = true
   try {
-    await apiClient.patch(`/api/photos/${photoEditor.value.id}`, {
+    const payload: PhotoUpdateRequest = {
       tags: String(photoEditor.value.tags || ''),
       description: String(photoEditor.value.description || ''),
       status: photoEditor.value.status || 'reviewed',
-    })
+    }
+    await patch<MessageResponse, PhotoUpdateRequest>(`/api/photos/${photoEditor.value.id}`, payload)
     toast.add({ severity: 'success', summary: 'Saved', detail: 'Photo updated.', life: 2500 })
     photoEditorVisible.value = false
     await loadPhotos()
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Save failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     photoEditorSaving.value = false
   }
 }
 
-async function deletePhoto(photo) {
+async function deletePhoto(photo: PhotoResponse) {
   if (!photo?.id) {
     return
   }
@@ -447,14 +468,15 @@ async function deletePhoto(photo) {
     return
   }
   try {
-    await apiClient.delete(`/api/photos/${photo.id}`)
+    await del<MessageResponse>(`/api/photos/${photo.id}`)
     toast.add({ severity: 'success', summary: 'Deleted', detail: 'Photo deleted.', life: 2500 })
     await loadPhotos()
     if (selectedRelatedItemId.value === `photo:${photo.id}`) {
       selectedRelatedItemId.value = ''
     }
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Delete failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Delete failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 </script>

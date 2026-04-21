@@ -13,14 +13,14 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
+import numpy as np
+
 from app.core.config import get_settings
 
 try:
     import chromadb
-    from chromadb.utils import embedding_functions
 except ImportError:  # pragma: no cover - optional runtime dependency
     chromadb = None
-    embedding_functions = None
 
 
 logger = logging.getLogger("knowledge_workspace")
@@ -61,13 +61,37 @@ def get_embedding_function():
     global _EMBEDDING_FUNCTION
     if _EMBEDDING_FUNCTION is not None:
         return _EMBEDDING_FUNCTION
-    if embedding_functions is None:
-        raise RuntimeError('chromadb is not installed.')
 
-    _EMBEDDING_FUNCTION = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name="all-MiniLM-L6-v2"
-    )
-    logger.info("Using sentence-transformers embeddings.")
+    class SimpleHashEmbeddingFunction:
+        """
+        Lightweight, deterministic embedding function.
+
+        Avoids heavyweight ML dependencies (e.g. sentence-transformers/torch) while keeping
+        ChromaDB features usable in clean environments and CI.
+        """
+
+        def __init__(self, *, dimension: int = 384) -> None:
+            self.dimension = int(dimension)
+
+        def __call__(self, texts: list[str]) -> list[list[float]]:
+            vectors: list[list[float]] = []
+            for text in texts:
+                raw = (text or "").encode("utf-8", errors="ignore")
+                buf = bytearray()
+                counter = 0
+                needed = self.dimension * 4
+                while len(buf) < needed:
+                    digest = hashlib.sha256(str(counter).encode("utf-8") + b":" + raw).digest()
+                    buf.extend(digest)
+                    counter += 1
+                arr = np.frombuffer(bytes(buf[:needed]), dtype=np.uint32).astype(np.float32)
+                arr = (arr / np.float32(2**31)) - np.float32(1.0)  # [-1, 1)
+                norm = float(np.linalg.norm(arr)) or 1.0
+                vectors.append((arr / norm).tolist())
+            return vectors
+
+    _EMBEDDING_FUNCTION = SimpleHashEmbeddingFunction()
+    logger.info("Using lightweight deterministic embeddings (SimpleHashEmbeddingFunction).")
     return _EMBEDDING_FUNCTION
 
 
@@ -409,7 +433,7 @@ class DocumentDatabase:
         if cursor.fetchone()[0] > 0:
             return
 
-        default_password = os.getenv("DEFAULT_OWNER_PASSWORD") or os.getenv("DEFAULT_ADMIN_PASSWORD")
+        default_password = os.getenv("DEFAULT_OWNER_PASSWORD")
         if not default_password:
             raise RuntimeError(
                 "DEFAULT_OWNER_PASSWORD must be set to seed the initial 'owner' account "

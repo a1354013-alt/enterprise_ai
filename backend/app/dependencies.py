@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import Header
 
-from app.auth import extract_token_from_header, verify_token
+from app.core.security import extract_token_from_header, verify_token
 
 
 logger = logging.getLogger("knowledge_workspace")

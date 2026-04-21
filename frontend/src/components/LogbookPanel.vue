@@ -81,7 +81,7 @@
   </Dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
@@ -94,28 +94,41 @@ import Dropdown from 'primevue/dropdown'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 
-import { apiClient } from '../api'
+import { del, get, patch, post } from '../api'
+import type {
+  AutoTestRunListItemResponse,
+  DocumentResponse,
+  KnowledgeEntryResponse,
+  LogbookEntryCreateRequest,
+  LogbookEntryResponse,
+  LogbookEntryUpdateRequest,
+  MessageResponse,
+  PhotoResponse,
+  PromoteToKnowledgeResponse,
+  SavedPromptResponse,
+} from '../types'
 import RelatedItemsPanel from './RelatedItemsPanel.vue'
 
 const toast = useToast()
 
 const loading = ref(false)
 const saving = ref(false)
-const entries = ref([])
+const entries = ref<LogbookEntryResponse[]>([])
 
 const selectedRelatedItemId = ref('')
 
 const editorVisible = ref(false)
 const editorSaving = ref(false)
-const editor = ref(createBlankForm())
+type LogbookEditorModel = LogbookEntryCreateRequest & { id: string }
+const editor = ref<LogbookEditorModel>(createBlankEditor())
 
 const pickerSelected = ref('')
-const documents = ref([])
-const photos = ref([])
-const prompts = ref([])
-const autotestRuns = ref([])
-const knowledgeEntries = ref([])
-const logbookEntries = ref([])
+const documents = ref<DocumentResponse[]>([])
+const photos = ref<PhotoResponse[]>([])
+const prompts = ref<SavedPromptResponse[]>([])
+const autotestRuns = ref<AutoTestRunListItemResponse[]>([])
+const knowledgeEntries = ref<KnowledgeEntryResponse[]>([])
+const logbookEntries = ref<LogbookEntryResponse[]>([])
 
 const pickerOptions = computedPickerOptions()
 
@@ -132,9 +145,9 @@ const statusOptions = [
   { label: 'Archived', value: 'archived' },
 ]
 
-const form = ref(createBlankForm())
+const form = ref<LogbookEntryCreateRequest>(createBlankForm())
 
-function createBlankForm() {
+function createBlankForm(): LogbookEntryCreateRequest {
   return {
     title: '',
     problem: '',
@@ -148,6 +161,10 @@ function createBlankForm() {
   }
 }
 
+function createBlankEditor(): LogbookEditorModel {
+  return { ...createBlankForm(), id: '' }
+}
+
 function resetForm() {
   form.value = createBlankForm()
 }
@@ -155,17 +172,18 @@ function resetForm() {
 async function loadEntries() {
   loading.value = true
   try {
-    entries.value = await apiClient.get('/api/logbook/entries')
-  } catch (error) {
+    entries.value = await get<LogbookEntryResponse[]>('/api/logbook/entries')
+  } catch (error: unknown) {
     entries.value = []
-    toast.add({ severity: 'error', summary: 'Load failed', detail: error.message, life: 3500 })
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Load failed', detail: apiError?.message || 'Request failed.', life: 3500 })
   } finally {
     loading.value = false
   }
 }
 
 async function saveEntry() {
-  const payload = {
+  const payload: LogbookEntryCreateRequest = {
     title: String(form.value.title || '').trim(),
     problem: String(form.value.problem || '').trim(),
     root_cause: String(form.value.root_cause || '').trim(),
@@ -183,31 +201,33 @@ async function saveEntry() {
 
   saving.value = true
   try {
-    await apiClient.post('/api/logbook/entries', payload)
+    await post<MessageResponse, LogbookEntryCreateRequest>('/api/logbook/entries', payload)
     toast.add({ severity: 'success', summary: 'Saved', detail: 'Logbook entry indexed.', life: 3000 })
     resetForm()
     await loadEntries()
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Save failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     saving.value = false
   }
 }
 
-async function deleteEntry(item) {
+async function deleteEntry(item: LogbookEntryResponse) {
   if (!window.confirm(`Delete "${item.title}"?`)) {
     return
   }
   try {
-    await apiClient.delete(`/api/logbook/entries/${item.id}`)
+    await del<MessageResponse>(`/api/logbook/entries/${item.id}`)
     await loadEntries()
     toast.add({ severity: 'success', summary: 'Deleted', detail: 'Entry removed.', life: 3000 })
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Delete failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Delete failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
-async function promoteEntry(item) {
+async function promoteEntry(item: LogbookEntryResponse) {
   if (!item?.id) {
     return
   }
@@ -215,24 +235,25 @@ async function promoteEntry(item) {
     return
   }
   try {
-    const response = await apiClient.post(`/api/logbook/entries/${item.id}/promote-to-knowledge`)
+    const response = await post<PromoteToKnowledgeResponse>(`/api/logbook/entries/${item.id}/promote-to-knowledge`)
     await loadEntries()
     toast.add({ severity: 'success', summary: 'Promoted', detail: `Knowledge entry: ${response.knowledge_entry_id}`, life: 4500 })
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Promote failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Promote failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   }
 }
 
 onMounted(loadEntries)
 
-function selectForRelated(item) {
+function selectForRelated(item: LogbookEntryResponse) {
   if (!item?.id) {
     return
   }
   selectedRelatedItemId.value = `logbook:${item.id}`
 }
 
-function openEditor(item) {
+function openEditor(item: LogbookEntryResponse) {
   if (!item?.id) {
     return
   }
@@ -256,12 +277,12 @@ function openEditor(item) {
 async function loadPickers() {
   try {
     const [docs, imgs, runs, promptList, kbEntries, lbEntries] = await Promise.all([
-      apiClient.get('/api/docs'),
-      apiClient.get('/api/photos'),
-      apiClient.get('/api/autotest/runs'),
-      apiClient.get('/api/prompts'),
-      apiClient.get('/api/knowledge/entries'),
-      apiClient.get('/api/logbook/entries'),
+      get<DocumentResponse[]>('/api/docs'),
+      get<PhotoResponse[]>('/api/photos'),
+      get<AutoTestRunListItemResponse[]>('/api/autotest/runs'),
+      get<SavedPromptResponse[]>('/api/prompts'),
+      get<KnowledgeEntryResponse[]>('/api/knowledge/entries'),
+      get<LogbookEntryResponse[]>('/api/logbook/entries'),
     ])
     documents.value = docs || []
     photos.value = imgs || []
@@ -320,7 +341,7 @@ async function saveEditor() {
   if (!editor.value?.id) {
     return
   }
-  const payload = {
+  const payload: LogbookEntryUpdateRequest = {
     title: String(editor.value.title || '').trim(),
     problem: String(editor.value.problem || '').trim(),
     root_cause: String(editor.value.root_cause || '').trim(),
@@ -333,13 +354,14 @@ async function saveEditor() {
   }
   editorSaving.value = true
   try {
-    await apiClient.patch(`/api/logbook/entries/${editor.value.id}`, payload)
+    await patch<MessageResponse, LogbookEntryUpdateRequest>(`/api/logbook/entries/${editor.value.id}`, payload)
     toast.add({ severity: 'success', summary: 'Saved', detail: 'Logbook entry updated.', life: 2500 })
     editorVisible.value = false
     await loadEntries()
     selectedRelatedItemId.value = `logbook:${editor.value.id}`
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 })
+  } catch (error: unknown) {
+    const apiError = error as { message?: string }
+    toast.add({ severity: 'error', summary: 'Save failed', detail: apiError?.message || 'Request failed.', life: 4000 })
   } finally {
     editorSaving.value = false
   }

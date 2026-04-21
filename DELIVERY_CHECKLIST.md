@@ -20,6 +20,7 @@
 - Start backend on `8000`
 - Start frontend on `5173`
 - Login with `owner` account
+- Verify `/health` and `/api/health` return 200 with the same payload
 - Verify `/api/me`
 - Upload a document and confirm it appears in Documents list with `status=reviewed`, can be previewed/downloaded, and can be archived/deleted
 - Upload a photo and confirm it appears in Photos list, can be previewed/downloaded, and can be deleted

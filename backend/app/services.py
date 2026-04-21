@@ -11,6 +11,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 from app.database import DocumentDatabase, add_to_vector_db, query_kb_vector_db, query_vector_db
 from app.llm import get_llm_provider
 from app.models import Source
+from app.text_files import read_text_file
 
 
 logger = logging.getLogger("knowledge_workspace")
@@ -43,13 +44,11 @@ def load_document_text(file_path: str, filename: str) -> list[tuple[str, str]]:
         return pages
 
     if extension in {'.txt', '.md'}:
-        for encoding in ('utf-8', 'utf-8-sig', 'cp950'):
-            try:
-                text = Path(file_path).read_text(encoding=encoding)
-                return [('1', text)]
-            except UnicodeDecodeError:
-                continue
-        raise ValueError('Unable to decode text document.')
+        try:
+            text, _encoding = read_text_file(file_path)
+        except ValueError as exc:
+            raise ValueError("Unable to decode text document.") from exc
+        return [('1', text)]
 
     raise ValueError(f'Unsupported file type: {extension}')
 

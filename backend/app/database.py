@@ -35,7 +35,9 @@ KNOWLEDGE_STATUS_VALUES = WORKFLOW_STATUS_VALUES
 LOGBOOK_STATUS_VALUES = WORKFLOW_STATUS_VALUES
 DOC_STATUS_VALUES = WORKFLOW_STATUS_VALUES
 PHOTO_STATUS_VALUES = WORKFLOW_STATUS_VALUES
-AUTOTEST_STATUS_VALUES = ("queued", "running", "passed", "failed")
+AUTOTEST_RUN_STATUS_VALUES = ("queued", "running", "passed", "failed")
+AUTOTEST_STEP_STATUS_VALUES = ("queued", "running", "passed", "failed", "skipped", "unavailable")
+AUTOTEST_STATUS_VALUES = AUTOTEST_RUN_STATUS_VALUES
 
 
 def utc_now_iso() -> str:
@@ -1189,7 +1191,7 @@ class DocumentDatabase:
         stderr_summary: str = "",
         error_type: str = "",
     ) -> bool:
-        if status not in AUTOTEST_STATUS_VALUES and status not in {"passed", "failed"}:
+        if status not in AUTOTEST_STEP_STATUS_VALUES:
             raise ValueError(f"Unsupported autotest step status: {status}")
         now = utc_now_iso()
         try:
@@ -1257,7 +1259,7 @@ class DocumentDatabase:
     def update_autotest_step(self, step_id: str, **updates: Any) -> bool:
         if not updates:
             return False
-        if "status" in updates and str(updates["status"]) not in AUTOTEST_STATUS_VALUES and str(updates["status"]) not in {"passed", "failed"}:
+        if "status" in updates and str(updates["status"]) not in AUTOTEST_STEP_STATUS_VALUES:
             raise ValueError(f"Unsupported autotest step status: {updates['status']}")
         columns: list[str] = []
         params: list[Any] = []

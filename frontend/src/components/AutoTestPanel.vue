@@ -80,7 +80,10 @@
           <div class="result-box" v-if="selectedRun.steps?.length">
             <h3>Steps</h3>
             <article v-for="step in selectedRun.steps" :key="step.step_id" class="step-card">
-              <strong>{{ step.name }} · {{ step.status }}</strong>
+              <div class="step-head">
+                <strong>{{ step.name }}</strong>
+                <span :class="badgeClass(step.status)">{{ step.status }}</span>
+              </div>
               <p class="muted">{{ step.command }}</p>
               <pre class="mono">{{ step.output || step.stderr_summary || step.stdout_summary || '-' }}</pre>
             </article>
@@ -114,6 +117,16 @@ const running = ref(false)
 const loadingRuns = ref(false)
 const runs = ref<AutoTestRunListItemResponse[]>([])
 const selectedRun = ref<AutoTestRunResponse | null>(null)
+
+function badgeClass(status: string) {
+  const value = String(status || '').toLowerCase()
+  if (value === 'passed') return 'badge badge-ok'
+  if (value === 'failed') return 'badge badge-bad'
+  if (value === 'skipped') return 'badge badge-skip'
+  if (value === 'unavailable') return 'badge badge-unavail'
+  if (value === 'running') return 'badge badge-run'
+  return 'badge badge-neutral'
+}
 
 function openZipPicker() {
   zipInput.value?.click()
@@ -240,6 +253,61 @@ onMounted(loadRuns)
   border-radius: 12px;
   background: white;
   border: 1px solid #d8e1e8;
+}
+
+.step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  border: 1px solid transparent;
+  text-transform: lowercase;
+}
+
+.badge-neutral {
+  background: #f0f4f8;
+  color: #3a4755;
+  border-color: #d8e1e8;
+}
+
+.badge-run {
+  background: #eef6ff;
+  color: #1e4e8c;
+  border-color: #cfe6ff;
+}
+
+.badge-ok {
+  background: #e8fbf1;
+  color: #0f6b3a;
+  border-color: #bfead0;
+}
+
+.badge-bad {
+  background: #fff0f0;
+  color: #a11919;
+  border-color: #ffd0d0;
+}
+
+.badge-skip {
+  background: #fff7e6;
+  color: #8a5a00;
+  border-color: #ffe0a3;
+}
+
+.badge-unavail {
+  background: #f6f0ff;
+  color: #5a2ea6;
+  border-color: #e2d3ff;
 }
 
 .mono {

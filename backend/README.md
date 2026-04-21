@@ -14,6 +14,8 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## Main endpoints
 
+- `GET /health` (legacy)
+- `GET /api/health` (CI + clients)
 - `POST /api/login`
 - `GET /api/me`
 - `POST /api/docs/upload`
@@ -69,6 +71,14 @@ Minimum required:
 
 Optional (common):
 - `ALLOWED_ORIGINS` (comma-separated)
-- `OCR_ENABLED` (`true/false`)
+- `MAX_FILE_SIZE` (bytes; default: 52428800 = 50MB)
+- `OCR_ENABLED` (`true/false/1/0`)
+- `OCR_TESSERACT_CMD` (optional absolute path to the `tesseract` binary)
 - `LLM_PROVIDER` (`ollama`, `mock`, `fallback`)
 - `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
+
+Text uploads:
+- `.txt` / `.md` are decoded with `utf-8`, `utf-8-sig`, or `cp950` (upload validation and indexing use the same rules).
+
+OCR notes:
+- `available=true` requires the Python deps **and** a runnable system Tesseract binary.

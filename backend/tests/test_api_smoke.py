@@ -56,6 +56,20 @@ def test_login_success_and_failure(monkeypatch, tmp_path):
     assert bad.status_code == 401
 
 
+def test_health_and_api_health_are_compatible(monkeypatch, tmp_path):
+    main = load_app(monkeypatch, tmp_path)
+    client = TestClient(main.app)
+
+    plain = client.get("/health")
+    api = client.get("/api/health")
+
+    assert plain.status_code == 200, plain.text
+    assert api.status_code == 200, api.text
+    assert plain.json() == api.json()
+    assert plain.json().get("status") == "ok"
+    assert isinstance(plain.json().get("version"), str)
+
+
 def test_me_endpoint(monkeypatch, tmp_path):
     main = load_app(monkeypatch, tmp_path)
     client = TestClient(main.app)

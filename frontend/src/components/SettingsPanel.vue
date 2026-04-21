@@ -51,8 +51,17 @@
             <div class="value">{{ ocr.enabled ? 'yes' : 'no' }}</div>
             <div class="key">Available</div>
             <div class="value">{{ ocr.available ? 'yes' : 'no' }}</div>
+            <div class="key">Tesseract</div>
+            <div class="value">{{ ocr.tesseract_version || '-' }}</div>
+            <div class="key">Command</div>
+            <div class="value">{{ ocr.tesseract_cmd || '-' }}</div>
+            <div class="key">Details</div>
+            <div class="value">{{ ocr.details || '-' }}</div>
           </div>
-          <p class="muted">Set `OCR_ENABLED=0` to disable OCR on the backend.</p>
+          <p class="muted">
+            OCR requires both Python deps (pytesseract/Pillow) and a system Tesseract binary. Set `OCR_ENABLED=0` to disable OCR, or set
+            `OCR_TESSERACT_CMD=/path/to/tesseract` to point to the binary.
+          </p>
         </div>
       </template>
     </Card>
@@ -87,7 +96,7 @@ const status = ref<SettingsLLMResponse>({
   fallback_mode: true,
 })
 const templates = ref<TemplateMetaItem[]>([])
-const ocr = ref<SettingsOCRResponse>({ enabled: false, available: false })
+const ocr = ref<SettingsOCRResponse>({ enabled: false, available: false, tesseract_cmd: '', tesseract_version: '', details: '' })
 
 async function loadStatus() {
   loading.value = true
@@ -125,7 +134,7 @@ async function loadOcrStatus() {
   try {
     ocr.value = await get<SettingsOCRResponse>('/api/settings/ocr')
   } catch (error: unknown) {
-    ocr.value = { enabled: false, available: false }
+    ocr.value = { enabled: false, available: false, tesseract_cmd: '', tesseract_version: '', details: '' }
     const apiError = error as { message?: string }
     toast.add({ severity: 'error', summary: 'OCR status failed', detail: apiError?.message || 'Request failed.', life: 3500 })
   } finally {

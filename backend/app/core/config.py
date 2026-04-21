@@ -62,6 +62,14 @@ class Settings(BaseModel):
         """Load settings from environment variables with validation."""
         backend_dir = Path(__file__).resolve().parents[2]
 
+        def parse_bool(raw: str, *, default: bool) -> bool:
+            value = (raw or "").strip().lower()
+            if value in {"1", "true", "yes", "y", "on"}:
+                return True
+            if value in {"0", "false", "no", "n", "off"}:
+                return False
+            return bool(default)
+
         def resolve_path(raw: str, *, default: Path) -> Path:
             value = (raw or "").strip()
             path = default if not value else Path(value)
@@ -107,7 +115,7 @@ class Settings(BaseModel):
             AUTOTEST_RLIMIT_CPU_SECONDS=int(os.getenv("AUTOTEST_RLIMIT_CPU_SECONDS", "310")),
             AUTOTEST_RLIMIT_AS_MB=int(os.getenv("AUTOTEST_RLIMIT_AS_MB", "2048")),
             AUTOTEST_RLIMIT_FSIZE_MB=int(os.getenv("AUTOTEST_RLIMIT_FSIZE_MB", "200")),
-            OCR_ENABLED=os.getenv("OCR_ENABLED", "true").lower() == "true",
+            OCR_ENABLED=parse_bool(os.getenv("OCR_ENABLED", "true"), default=True),
             LLM_PROVIDER=(os.getenv("LLM_PROVIDER", "ollama") or "ollama").strip().lower(),
             OLLAMA_BASE_URL=(os.getenv("OLLAMA_BASE_URL", "http://localhost:11434") or "http://localhost:11434").strip(),
             OLLAMA_MODEL=(os.getenv("OLLAMA_MODEL", "llama3.1") or "llama3.1").strip(),

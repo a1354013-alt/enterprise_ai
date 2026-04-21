@@ -10,6 +10,7 @@ Knowledge_Workspace/
       database.py
       services.py
       utils.py
+      text_files.py
       kb_index.py
       dependencies.py
       auth.py

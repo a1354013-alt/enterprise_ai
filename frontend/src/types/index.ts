@@ -197,11 +197,14 @@ export interface UploadPhotoResponse extends PhotoResponse {
 }
 
 // AutoTest
+export type AutoTestRunStatus = 'queued' | 'running' | 'passed' | 'failed';
+export type AutoTestStepStatus = AutoTestRunStatus | 'skipped' | 'unavailable';
+
 export interface AutoTestStepResponse {
   step_id: string;
   name: string;
   command: string;
-  status: string;
+  status: AutoTestStepStatus;
   started_at: string;
   finished_at: string;
   output: string;
@@ -216,7 +219,7 @@ export interface AutoTestStepResponse {
 export interface AutoTestRunListItemResponse {
   id: string;
   project_name: string;
-  status: string;
+  status: AutoTestRunStatus;
   created_at: string;
   summary: string;
 }
@@ -230,7 +233,7 @@ export interface AutoTestRunResponse {
   working_directory: string;
   project_name: string;
   project_type: string;
-  status: string;
+  status: AutoTestRunStatus;
   summary: string;
   suggestion: string;
   prompt_output: string;
@@ -307,6 +310,9 @@ export interface SettingsLLMResponse {
 export interface SettingsOCRResponse {
   enabled: boolean;
   available: boolean;
+  tesseract_cmd: string;
+  tesseract_version: string;
+  details: string;
 }
 
 // Generic Response

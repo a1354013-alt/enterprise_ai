@@ -8,9 +8,9 @@ from typing import Iterable
 from fastapi import HTTPException, status
 
 from app.models import ROLE_VALUES
+from app.text_files import decode_text_bytes, looks_like_text_bytes
 
 
-MAX_FILE_SIZE = 50 * 1024 * 1024
 ALLOWED_FILE_EXTENSIONS = (".pdf", ".txt", ".md")
 ALLOWED_ROLES = set(ROLE_VALUES)
 
@@ -30,6 +30,12 @@ MAGIC_BYTES_SIGNATURES = {
     ".txt": None,  # No magic bytes for plain text
     ".md": None,   # No magic bytes for markdown
 }
+
+
+class FileTooLargeError(Exception):
+    def __init__(self, max_size: int) -> None:
+        super().__init__(f"File exceeds maximum size of {max_size} bytes.")
+        self.max_size = int(max_size)
 
 
 def generate_safe_filename(original_filename: str) -> str:
@@ -69,13 +75,18 @@ def validate_file_magic_bytes(file_content: bytes, filename: str) -> bool:
     
     # For text/markdown files, we just check they're valid UTF-8
     if ext in (".txt", ".md"):
-        try:
-            file_content.decode("utf-8")
-            return True
-        except UnicodeDecodeError:
+        if not looks_like_text_bytes(file_content):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File appears to be binary but has a text extension. Possible file spoofing detected.",
+            )
+        try:
+            decode_text_bytes(file_content)
+            return True
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to decode text document. Supported encodings: utf-8, utf-8-sig, cp950.",
             ) from None
     
     # For other file types, check magic bytes
@@ -127,7 +138,13 @@ def normalize_roles(roles: str | Iterable[str] | None, *, default: list[str] | N
     return deduplicated
 
 
-async def stream_write_file(file, file_path: Path, max_size: int = MAX_FILE_SIZE, chunk_size: int = 8192) -> int:
+async def stream_write_file(file, file_path: Path, max_size: int | None = None, chunk_size: int = 8192) -> int:
+    if max_size is None:
+        from app.core.config import get_settings
+
+        max_size = int(get_settings().MAX_FILE_SIZE)
+    else:
+        max_size = int(max_size)
     total_size = 0
     try:
         with open(file_path, 'wb') as output_file:
@@ -138,12 +155,18 @@ async def stream_write_file(file, file_path: Path, max_size: int = MAX_FILE_SIZE
 
                 total_size += len(chunk)
                 if total_size > max_size:
-                    file_path.unlink(missing_ok=True)
-                    raise HTTPException(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail=f"File exceeds the {max_size // (1024 * 1024)} MB limit.",
-                    )
+                    raise FileTooLargeError(max_size)
                 output_file.write(chunk)
+    except FileTooLargeError as exc:
+        try:
+            file_path.unlink(missing_ok=True)
+        except PermissionError:
+            # On Windows, open handles can prevent deletion. The caller can clean up later.
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds the {exc.max_size} bytes limit.",
+        ) from None
     except HTTPException:
         raise
     except Exception as exc:

@@ -99,6 +99,9 @@ class SettingsLLMResponse(StrictModel):
 class SettingsOCRResponse(StrictModel):
     enabled: bool
     available: bool
+    tesseract_cmd: str = ""
+    tesseract_version: str = ""
+    details: str = ""
 
 
 class KnowledgeEntryCreateRequest(StrictModel):
@@ -123,7 +126,7 @@ class KnowledgeEntryResponse(StrictModel):
     solution: str
     tags: str
     notes: str
-    source_type: str = "manual"
+    source_type: Literal["manual", "document-derived", "autotest-derived"] = "manual"
     source_ref: str = ""
     related_item_ids: list[str] = Field(default_factory=list)
     created_at: str
@@ -164,7 +167,7 @@ class LogbookEntryResponse(StrictModel):
     root_cause: str
     solution: str
     tags: str
-    source_type: str
+    source_type: Literal["manual", "document-derived", "autotest-derived"] = "manual"
     source_ref: str = ""
     related_item_ids: list[str] = Field(default_factory=list)
     created_at: str

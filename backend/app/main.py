@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import mimetypes
 import os
@@ -507,6 +508,45 @@ def autotest_commands(project_type: str) -> dict[str, list[str]]:
     }
 
 
+def _read_package_json_scripts(working_dir: Path) -> dict[str, str]:
+    package_json = working_dir / "package.json"
+    if not package_json.exists():
+        return {}
+    try:
+        raw = package_json.read_text(encoding="utf-8")
+        parsed = json.loads(raw)
+    except Exception:
+        return {}
+    scripts = parsed.get("scripts") if isinstance(parsed, dict) else None
+    if not isinstance(scripts, dict):
+        return {}
+    normalized: dict[str, str] = {}
+    for key, value in scripts.items():
+        if isinstance(key, str) and isinstance(value, str):
+            normalized[key] = value
+    return normalized
+
+
+def _autotest_step_should_run(*, project_type: str, working_dir: Path, step_name: str) -> tuple[bool, str]:
+    name = str(step_name or "").strip().lower()
+    pt = str(project_type or "").strip().lower()
+
+    if pt == "node" and name in {"build", "test", "lint"}:
+        scripts = _read_package_json_scripts(working_dir)
+        if name not in scripts:
+            return False, f"Missing npm script '{name}' in package.json; step skipped."
+        return True, ""
+
+    if pt == "python" and name == "test":
+        has_tests_dir = (working_dir / "tests").is_dir()
+        has_pytest_ini = (working_dir / "pytest.ini").exists()
+        if not has_tests_dir and not has_pytest_ini:
+            return False, "No 'tests/' directory or pytest.ini found; step skipped."
+        return True, ""
+
+    return True, ""
+
+
 def _safe_download_filename(value: str) -> str:
     name = str(value or "").replace("\r", "").replace("\n", "").strip()
     if not name:
@@ -657,6 +697,12 @@ async def healthcheck() -> HealthResponse:
     return HealthResponse(status="ok", version=APP_VERSION)
 
 
+@app.get("/api/health", response_model=HealthResponse)
+async def api_healthcheck() -> HealthResponse:
+    # CI probes /api/health, while /health is kept for backwards compatibility.
+    return await healthcheck()
+
+
 @app.post("/api/login", response_model=LoginResponse)
 @limiter.limit("5/minute")  # Rate limit: 5 requests per minute to prevent brute force
 async def login(request: Request, payload: LoginRequest) -> LoginResponse:
@@ -703,6 +749,9 @@ async def ocr_settings(current_user: dict = Depends(get_current_user)) -> Settin
     return SettingsOCRResponse(
         enabled=bool(status_payload.get("enabled", False)),
         available=bool(status_payload.get("available", False)),
+        tesseract_cmd=str(status_payload.get("tesseract_cmd", "") or ""),
+        tesseract_version=str(status_payload.get("tesseract_version", "") or ""),
+        details=str(status_payload.get("details", "") or ""),
     )
 
 
@@ -933,7 +982,7 @@ async def list_logbook_entries(current_user: dict = Depends(get_current_user)) -
             root_cause=row.get("root_cause", ""),
             solution=row.get("solution", ""),
             tags=row.get("tags", ""),
-            source_type=row.get("source_type", ""),
+            source_type=row.get("source_type", "manual") or "manual",
             source_ref=row.get("source_ref", "") or "",
             related_item_ids=db.list_related_item_ids(f"logbook:{row['entry_id']}"),
             created_at=row.get("created_at", ""),
@@ -1448,11 +1497,9 @@ async def run_autotest(
             project_type=project_type_detected,
         )
 
+        skipped_steps: list[str] = []
         for name, argv in steps_def:
             step_id = step_ids[name]
-            started_at = utc_now_iso()
-            db.update_autotest_step(step_id, status="running", started_at=started_at)
-
             ok = True
             exit_code = 0
             error_type = ""
@@ -1462,6 +1509,8 @@ async def run_autotest(
 
             command = " ".join(argv)
             if fail_step and fail_step == name:
+                started_at = utc_now_iso()
+                db.update_autotest_step(step_id, status="running", started_at=started_at)
                 ok = False
                 exit_code = 1
                 error_type = "simulated_failure"
@@ -1474,6 +1523,38 @@ async def run_autotest(
                     f"Simulated failure requested by zip marker: {fail_step}\n"
                 )
             elif execution_mode == "real" and project_type_detected in {"node", "python"}:
+                should_run, skip_reason = _autotest_step_should_run(
+                    project_type=project_type_detected, working_dir=working_dir, step_name=name
+                )
+                if not should_run:
+                    skipped_steps.append(name)
+                    started_at = utc_now_iso()
+                    finished_at = started_at
+                    output_text = (
+                        f"[{name}] command: {command}\n"
+                        f"[{name}] project_type_detected: {project_type_detected}\n"
+                        f"[{name}] execution_mode: real\n"
+                        f"[{name}] working_directory: {working_dir_rel}\n"
+                        f"[{name}] skipped: yes\n"
+                        f"Reason: {skip_reason}\n"
+                    ).strip()
+                    outputs[name] = output_text
+                    db.update_autotest_step(
+                        step_id,
+                        status="skipped",
+                        started_at=started_at,
+                        finished_at=finished_at,
+                        output=output_text,
+                        success=1,
+                        exit_code=0,
+                        stdout_summary="",
+                        stderr_summary="",
+                        error_type="skipped",
+                    )
+                    continue
+
+                started_at = utc_now_iso()
+                db.update_autotest_step(step_id, status="running", started_at=started_at)
                 try:
                     exit_code, stdout, stderr = _run_command(argv=argv, cwd=working_dir, timeout_seconds=timeout_seconds)
                     ok = exit_code == 0
@@ -1493,6 +1574,8 @@ async def run_autotest(
                     error_type = "exception"
                     output_text = f"[{name}] exception while running command: {exc}"
             else:
+                started_at = utc_now_iso()
+                db.update_autotest_step(step_id, status="running", started_at=started_at)
                 output_text = (
                     f"[{name}] command: {command}\n"
                     f"[{name}] project_type_detected: {project_type_detected}\n"
@@ -1514,9 +1597,12 @@ async def run_autotest(
 
             finished_at = utc_now_iso()
             outputs[name] = output_text
+            step_status = "passed" if ok else "failed"
+            if error_type == "command_not_found":
+                step_status = "unavailable"
             db.update_autotest_step(
                 step_id,
-                status="passed" if ok else "failed",
+                status=step_status,
                 finished_at=finished_at,
                 output=output_text,
                 success=1 if ok else 0,
@@ -1532,13 +1618,16 @@ async def run_autotest(
                 break
 
         if overall_ok:
-            summary = f"Acceptance pipeline passed ({project_type_detected})."
+            skipped_suffix = f"; skipped: {', '.join(skipped_steps)}" if skipped_steps else ""
+            summary = f"Acceptance pipeline passed ({project_type_detected}){skipped_suffix}."
             prompt_output = (
                 "AutoTest passed.\n\n"
                 f"Project: {project_name}\n"
                 "Steps: install, build, test, lint\n"
-                "Next: capture any useful learnings into a Knowledge entry."
             )
+            if skipped_steps:
+                prompt_output += f"Skipped: {', '.join(skipped_steps)}\n"
+            prompt_output += "Next: capture any useful learnings into a Knowledge entry."
             db.update_autotest_run(run_id, status="passed", summary=summary, prompt_output=prompt_output)
 
             knowledge_id = str(uuid.uuid4())

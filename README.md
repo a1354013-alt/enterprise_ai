@@ -77,20 +77,29 @@ python scripts/smoke_check.py --password "<DEFAULT_OWNER_PASSWORD>"
 All backend paths are resolved consistently via `backend/app/core/config.py`:
 - Relative paths are resolved **relative to `backend/`** (not the current working directory).
 
+Health probes:
+- `GET /health` (legacy)
+- `GET /api/health` (CI + clients)
+
 Key environment variables:
 - `JWT_SECRET` (required, **min 32 chars**)
 - `DEFAULT_OWNER_PASSWORD` (required to seed initial `owner`)
 - `DATABASE_PATH` (default: `documents.db`)
 - `UPLOAD_DIR` (default: `uploads/`)
+- `MAX_FILE_SIZE` (default: `52428800` bytes = 50MB; enforced by all uploads)
 - `PHOTO_DIR` (default: `photos/`)
 - `CHROMA_DB_PATH` (default: `chroma_db/`)
 - `AUTOTEST_DIR` (default: `autotest_uploads/`)
 - `AUTOTEST_MODE` (`real` or `simulated`)
 - `ALLOWED_ORIGINS` (comma-separated)
-- `OCR_ENABLED` (`true/false`)
+- `OCR_ENABLED` (`true/false/1/0`)
+- `OCR_TESSERACT_CMD` (optional absolute path to the `tesseract` binary if not on `PATH`)
 - `LLM_PROVIDER` (`ollama`, `mock`, `fallback`)
 - `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
 - `OLLAMA_MODEL` (default: `llama3.1`)
+
+Text uploads:
+- `.txt` / `.md` are accepted and decoded with `utf-8`, `utf-8-sig`, or `cp950` (validation and indexing use the same rules).
 
 ## Developer Commands
 

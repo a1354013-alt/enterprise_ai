@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -22,11 +23,43 @@ except ImportError:
     PYTESSERACT_AVAILABLE = False
     logger.warning("pytesseract or PIL not installed. OCR functionality will be disabled.")
 
+
+def _resolve_tesseract_cmd() -> str:
+    configured = os.getenv("OCR_TESSERACT_CMD", "").strip()
+    if configured:
+        return configured
+    return shutil.which("tesseract") or ""
+
+
+def _check_tesseract_runtime() -> tuple[bool, str, str, str]:
+    """
+    Returns: (ok, tesseract_cmd, tesseract_version, details)
+    """
+    if not PYTESSERACT_AVAILABLE:
+        return False, "", "", "Python OCR dependencies are missing (pytesseract/Pillow)."
+
+    tesseract_cmd = _resolve_tesseract_cmd()
+    if not tesseract_cmd:
+        return False, "", "", "Tesseract binary not found. Install tesseract-ocr or set OCR_TESSERACT_CMD."
+
+    try:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        version = str(pytesseract.get_tesseract_version())
+        return True, tesseract_cmd, version, "Tesseract binary detected."
+    except Exception as exc:
+        return False, tesseract_cmd, "", f"Tesseract binary is not runnable: {exc}"
+
+
 def get_ocr_status() -> dict[str, Any]:
     settings = get_settings()
+    ok, tesseract_cmd, tesseract_version, details = _check_tesseract_runtime()
+    enabled = bool(settings.OCR_ENABLED)
     return {
-        "enabled": bool(settings.OCR_ENABLED),
-        "available": bool(PYTESSERACT_AVAILABLE),
+        "enabled": enabled,
+        "available": bool(ok),
+        "tesseract_cmd": str(tesseract_cmd),
+        "tesseract_version": str(tesseract_version),
+        "details": ("OCR is disabled by OCR_ENABLED=0." if not enabled else "") + ((" " + details) if details else ""),
     }
 
 
@@ -47,15 +80,18 @@ def extract_text_from_image(image_path: str | Path) -> str:
         logger.info("OCR is not available. Install pytesseract and PIL for OCR support.")
         return ""
 
+    ok, tesseract_cmd, _tesseract_version, details = _check_tesseract_runtime()
+    if not ok:
+        logger.info("OCR unavailable: %s", details)
+        return ""
+
     try:
         image_path = Path(image_path)
         if not image_path.exists():
             logger.warning(f"Image file not found: {image_path}")
             return ""
 
-        tesseract_cmd = os.getenv("OCR_TESSERACT_CMD", "").strip()
-        if tesseract_cmd:
-            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
         ImageFile.LOAD_TRUNCATED_IMAGES = False
         PILImage.MAX_IMAGE_PIXELS = int(os.getenv("OCR_MAX_PIXELS", str(20_000_000)))
